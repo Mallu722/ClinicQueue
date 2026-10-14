@@ -1,0 +1,466 @@
+# ClinicQueue — Product Requirements Document (PRD)
+
+**Version:** 1.0  
+**Status:** Proposed Baseline for Development  
+**Product Type:** Healthcare SaaS / Clinic Operations Platform  
+**Initial Release:** Responsive Website + Progressive Web App (PWA)  
+**Target Market:** Tier-2 and Tier-3 cities in India  
+**Team Size:** 1–2 developers
+
+## 1. Product Overview
+
+ClinicQueue is a multilingual, web-first clinic management platform designed for independent doctors and small outpatient clinics.
+
+The platform centralizes appointment scheduling, walk-in registration, queue management, estimated waiting times, patient visit history, clinician-recorded prescriptions, follow-up management, WhatsApp reminders, and clinic analytics.
+
+The product aims to help clinics organize daily operations while giving patients and caregivers easier access to clinic information and queue updates.
+
+The initial release will be deployed with one pilot clinic. Expansion to multiple clinics will happen after usability, reliability, and willingness to pay are validated.
+
+## 2. Problem Statement
+
+Small clinics may depend on paper registers, phone calls, spreadsheets, or disconnected applications to manage appointments and patient flow.
+
+This can create the following problems:
+
+1. Patients cannot reliably determine current doctor availability.
+2. Appointment and walk-in queues may be managed manually.
+3. Patients may wait without knowing their approximate queue status.
+4. Receptionists may spend time answering repeated availability and appointment enquiries.
+5. Authorized clinicians may need to search multiple records to understand previous visits.
+6. Patients may forget appointments or clinician-recommended follow-ups.
+7. Clinic owners may lack convenient daily, weekly, and monthly operational reports.
+
+These are problem hypotheses that must be validated through interviews and observations at local clinics before the full product scope is committed.
+
+## 3. Product Vision
+
+To make essential digital clinic operations accessible, understandable, and affordable for small healthcare providers in Tier-2 and Tier-3 India.
+
+### Product positioning
+
+ClinicQueue will be a lightweight, receptionist-first clinic operations platform rather than a full hospital information system.
+
+Its initial differentiation hypotheses are:
+
+- Simple onboarding for small clinics.
+- Responsive access without mandatory app installation.
+- Local-language patient experience.
+- A connected appointment, queue, patient-history, and follow-up workflow.
+- WhatsApp-based reminders with delivery tracking.
+- Actionable daily, weekly, and monthly analytics.
+
+Existing clinic-management platforms already offer overlapping capabilities. Differentiation must therefore be validated with actual clinic users.
+
+## 4. Goals and Non-Goals
+
+### Product goals
+
+- Digitize appointments and walk-in queue management.
+- Give patients access to current clinic information.
+- Provide a useful estimated waiting-time range.
+- Maintain structured patient visit history for authorized clinicians.
+- Record clinician-entered prescriptions and follow-up plans.
+- Send permitted appointment and follow-up reminders through WhatsApp.
+- Show reliable daily, weekly, and monthly clinic visitor trends.
+- Support clinic-level access controls and auditability.
+- Validate a recurring-revenue business model with real clinics.
+
+### Non-goals for the MVP
+
+- AI diagnosis or treatment recommendations.
+- Automatic medicine or dosage recommendations.
+- Full hospital management, inpatient, or bed-management workflows.
+- Pharmacy inventory management.
+- Full accounting and billing.
+- Telemedicine consultations.
+- Native Android and iOS applications.
+- Full offline synchronization of clinical records.
+- Advanced AI-based forecasting.
+- Production ABDM integration without a validated requirement.
+
+## 5. Target Users and Personas
+
+### Persona A: Patient or caregiver
+
+**Needs**
+- Check clinic location, OPD timings, and doctor information.
+- Request an appointment.
+- View queue status and approximate waiting time.
+- Receive appointment and permitted follow-up reminders.
+- Use a simple interface in a familiar language.
+
+**Pain points**
+- Uncertain waiting times.
+- Repeated phone calls.
+- Difficulty using complicated applications.
+- Limited access to smartphones or reliable internet for some users.
+
+### Persona B: Receptionist
+
+**Needs**
+- Register new patients and find existing records.
+- Confirm appointments.
+- Add walk-in patients.
+- Issue tokens and update queue status.
+- Communicate doctor delays and schedule changes.
+
+**Pain points**
+- Duplicate registrations.
+- Manual queue coordination.
+- Repeated patient enquiries.
+- Time-consuming administrative work.
+
+### Persona C: Doctor or authorized clinician
+
+**Needs**
+- View daily appointments and queue status.
+- Access previous visit records.
+- Record the current consultation.
+- Record prescriptions and follow-up dates.
+
+**Pain points**
+- Fragmented patient information.
+- Repeated manual searches.
+- Difficulty reviewing a patient's previous clinic visits.
+
+### Persona D: Clinic owner
+
+**Needs**
+- Monitor daily clinic activity.
+- Understand visitor trends and waiting times.
+- Review appointment outcomes and follow-up activity.
+- Manage staff access and clinic configuration.
+
+**Pain points**
+- Limited operational visibility.
+- Lack of structured reports.
+- Difficulty evaluating whether process changes improve performance.
+
+## 6. Product Scope
+
+### Module 1: Clinic Directory and Public Page
+
+The public clinic page shall provide:
+
+- Clinic name and address.
+- Contact information and map link.
+- Doctor names and specializations.
+- OPD schedules and working days.
+- Clinic status: open, closed, delayed, or temporarily unavailable.
+- Appointment request access.
+- Clinic QR code and shareable link.
+- Supported language selection.
+
+Only participating clinics with maintained information will appear in the initial directory.
+
+### Module 2: Appointment Management
+
+The system shall support:
+
+- Appointment requests.
+- Appointment confirmation, rejection, cancellation, and rescheduling.
+- Doctor schedule configuration.
+- Available appointment slots.
+- Walk-in registration.
+- Appointment history and status.
+- Duplicate booking prevention.
+- Appointment reminders.
+- No-show tracking.
+
+A request shall not be considered confirmed until the clinic's configured confirmation workflow is complete.
+
+### Module 3: Queue Management
+
+The system shall support:
+
+- Unique token generation.
+- Appointment and walk-in queue entries.
+- Waiting, in-consultation, completed, skipped, and cancelled statuses.
+- Queue reordering by authorized staff.
+- Doctor breaks and delays.
+- Queue pause and resume.
+- Patient-facing queue position.
+- Estimated waiting-time range.
+- Last-updated timestamp.
+- Controlled handling of emergencies according to clinic procedures.
+
+Queue updates must be reflected consistently across authorized users.
+
+### Module 4: Patient Profiles and Visit History
+
+Each clinic shall maintain its own patient records.
+
+The system shall support:
+
+- Clinic-specific patient identification.
+- Necessary patient contact information.
+- Previous visit timeline.
+- Visit date and status.
+- Clinician-recorded reason for visit.
+- Assessment or diagnosis, where recorded.
+- Clinical notes and relevant observations.
+- Clinician-entered prescription records.
+- Follow-up recommendations.
+- Authorized record correction history.
+
+Every consultation shall create a separate visit record. Historical records shall not be silently overwritten.
+
+Duplicate patient detection and identity verification shall be supported before linking new visits to existing records.
+
+### Module 5: Follow-Up Management
+
+The system shall support:
+
+- Clinician-defined follow-up dates.
+- Follow-up status tracking.
+- Upcoming, due, completed, rescheduled, and overdue states.
+- Reminder scheduling.
+- Reminder delivery status.
+- Communication preferences and opt-out handling.
+
+The system will track a clinician's instructions; it will not independently determine whether a patient requires another consultation.
+
+### Module 6: WhatsApp Reminders
+
+The platform shall integrate with the official WhatsApp Business Platform or a supported provider.
+
+Supported reminder categories:
+
+- Appointment confirmation.
+- Upcoming appointment.
+- Appointment rescheduling or cancellation.
+- Clinic-confirmed doctor delay.
+- Queue status update, if enabled.
+- Clinician-defined follow-up reminder.
+
+Requirements:
+
+- Appropriate patient opt-in or consent, as applicable.
+- Approved templates where required by WhatsApp policy.
+- Scheduled message processing.
+- Provider message identifier storage.
+- Sent, delivered, failed, and other available delivery statuses.
+- Controlled retries for transient failures.
+- Opt-out enforcement.
+- Generic message content without unnecessary health information.
+
+Provider setup, template approval, and messaging costs are dependencies for production deployment.
+
+### Module 7: Clinic Analytics
+
+The main visitor chart shall support three reporting periods:
+
+**Daily**
+- Visitor totals for the last 7 or 30 days.
+
+**Weekly**
+- Visitor totals for the last 8 or 12 weeks.
+
+**Monthly**
+- Visitor totals for the last 6 or 12 months.
+
+The separate hourly footfall graph is excluded from the initial design.
+
+Additional reports:
+
+- New versus returning patient visits.
+- Appointment completion and cancellation trends.
+- No-show rates.
+- Median waiting-time trends.
+- Follow-ups due and completed.
+- Operational usage reports.
+
+Metric definitions must remain consistent across all reporting periods.
+
+### Module 8: Owner Dashboard
+
+The owner dashboard shall include:
+
+- Total visits in the selected period.
+- Daily, weekly, and monthly visitor trends.
+- New and returning visit counts.
+- Appointment outcome reports.
+- Median waiting-time reports.
+- Follow-up summaries.
+- Staff access management.
+- Clinic configuration.
+
+Clinical details shall not be exposed through general operational analytics unless explicitly required, authorized, and appropriately protected.
+
+## 7. Functional Requirements
+
+| ID | Requirement | Priority |
+|---|---|---|
+| FR-01 | Users can authenticate according to their role | Must |
+| FR-02 | Clinic profiles and schedules can be managed | Must |
+| FR-03 | Patients can request appointments | Must |
+| FR-04 | Staff can confirm, cancel, and reschedule bookings | Must |
+| FR-05 | Staff can register walk-in patients | Must |
+| FR-06 | The system generates unique queue tokens | Must |
+| FR-07 | Staff can update queue status | Must |
+| FR-08 | Patients can view authorized queue information | Must |
+| FR-09 | The system estimates waiting-time ranges | Must |
+| FR-10 | Authorized clinicians can access patient visit history | Must |
+| FR-11 | Clinicians can record visits and prescriptions | Must |
+| FR-12 | Clinicians can define follow-up dates | Must |
+| FR-13 | The system schedules permitted WhatsApp reminders | Must |
+| FR-14 | Message delivery status can be tracked | Must |
+| FR-15 | The owner can view daily, weekly, and monthly visitor analytics | Must |
+| FR-16 | The system calculates appointment outcomes and waiting-time metrics | Must |
+| FR-17 | Clinic data is isolated by tenant and permissions | Must |
+| FR-18 | Sensitive access and modifications are auditable | Must |
+| FR-19 | The website is responsive and PWA-capable | Must |
+| FR-20 | Kannada, Hindi, and English interface support is provided | Should |
+| FR-21 | Automated SMS fallback is available | Later |
+| FR-22 | Native mobile applications are available | Later |
+| FR-23 | Advanced forecasting is available | Later |
+
+## 8. User Stories and Acceptance Criteria
+
+### Appointment booking
+
+**User story:** As a patient, I want to request an appointment so that I can plan my clinic visit.
+
+Acceptance criteria:
+- The patient can select an available appointment slot.
+- A valid request is saved.
+- The patient sees the correct booking status.
+- Conflicting confirmed bookings are prevented.
+- Confirmation is sent only after the configured confirmation event.
+
+### Walk-in registration
+
+**User story:** As a receptionist, I want to register walk-in patients so that all clinic arrivals can be managed in one queue.
+
+Acceptance criteria:
+- A valid queue entry is created.
+- The token is unique within the relevant clinic session.
+- Concurrent requests cannot create duplicate active tokens.
+- The queue status is visible to authorized users.
+
+### Patient history
+
+**User story:** As an authorized clinician, I want to review a patient's previous visits so that I can understand their documented clinic history.
+
+Acceptance criteria:
+- The clinician is authorized for the relevant clinic.
+- The correct patient record is identified.
+- Previous visits appear chronologically.
+- Historical records remain distinguishable from the current visit.
+- Unauthorized roles cannot access restricted clinical details.
+
+### WhatsApp reminder
+
+**User story:** As a patient, I want appointment reminders so that I can remember my scheduled visit.
+
+Acceptance criteria:
+- The reminder is scheduled for the configured time.
+- The system checks the relevant communication permission.
+- The message uses the appropriate configured template.
+- The message provider's identifier and delivery status are recorded.
+- Failed delivery is not incorrectly reported as successful.
+
+### Visitor analytics
+
+**User story:** As a clinic owner, I want to view visitors by day, week, or month so that I can understand clinic activity.
+
+Acceptance criteria:
+- The owner can select the reporting period.
+- Counts are calculated from actual records.
+- Cancelled appointments are not counted as completed visits.
+- Visit counts and unique-patient counts remain distinct.
+- Empty periods are represented consistently.
+- The displayed date range and clinic timezone are correct.
+
+## 9. Non-Functional Requirements
+
+### Performance
+- Common dashboard views should target a p95 response time of under 2 seconds under the agreed pilot workload.
+- Queue updates should normally become visible within a few seconds under healthy network conditions.
+- Heavy analytics queries must not block core queue operations.
+
+### Reliability
+- Database transactions shall protect booking and token integrity.
+- Scheduled reminders shall be processed reliably.
+- Duplicate webhook events shall not create duplicate notifications.
+- Backups and recovery procedures shall be tested.
+
+### Usability
+- Mobile-first responsive layouts.
+- Readable typography and accessible controls.
+- Clear status labels.
+- Simple receptionist workflow.
+- Appropriate loading, error, and stale-data states.
+
+### Security
+- Server-side authorization.
+- Tenant-level data isolation.
+- Secure authentication.
+- Encryption in transit.
+- Audit logging.
+- Restricted access to clinical records.
+
+### Maintainability
+- Modular frontend and backend.
+- Consistent API contracts.
+- Automated tests.
+- Documented deployment and environment configuration.
+
+## 10. Business Model
+
+ClinicQueue will initially follow a B2B SaaS subscription model.
+
+Proposed prices for market testing:
+
+- Pilot: Free for 2–4 weeks.
+- Basic: ₹699/month.
+- Plus: ₹999/month.
+- Advanced: ₹1,499/month or more.
+
+These are hypotheses, not validated market prices.
+
+Potential additional revenue sources include onboarding assistance, messaging usage, and custom integrations.
+
+The first commercial milestone is to convert at least one pilot clinic into a paying customer.
+
+## 11. Success Metrics
+
+Product success will be evaluated using:
+
+- Daily, weekly, and monthly visits.
+- Median waiting time.
+- Waiting-time estimate accuracy.
+- Queue update freshness.
+- Appointment no-show rate.
+- Number of availability-related enquiries, if recorded.
+- Reminder delivery rates.
+- Staff adoption.
+- Patient and clinic feedback.
+- Paid conversion and clinic retention.
+
+Baseline data must be collected before measuring improvement.
+
+## 12. Constraints and Assumptions
+
+- Initial release targets one independent clinic.
+- Internet connectivity is required for live updates.
+- Clinics are responsible for maintaining schedules and queue information.
+- Clinicians are responsible for clinical assessments and prescriptions.
+- WhatsApp messaging depends on business setup, templates where required, and provider availability.
+- The initial release is not a full electronic health-record or hospital information system.
+- Regulatory and privacy requirements must be reviewed before real patient data is processed.
+
+## 13. Release Plan
+
+**Release 1:** Clinic profiles, appointment management, walk-ins, queue management, patient history, prescriptions, follow-ups, WhatsApp reminders, analytics, access controls, and PWA.
+
+**Release 2:** More clinics, improved notification options, advanced reporting, additional languages, and selected integrations.
+
+**Release 3:** Native mobile applications, advanced forecasting, multi-branch workflows, and validated interoperability integrations.
+
+## 14. Final Product Definition
+
+ClinicQueue is a responsive, multilingual clinic operations platform that connects appointments, queue management, clinician-controlled patient history, WhatsApp reminders, and daily/weekly/monthly analytics for small clinics in Tier-2 and Tier-3 India.
+
+The MVP will be validated through a real clinic pilot before large-scale expansion.
