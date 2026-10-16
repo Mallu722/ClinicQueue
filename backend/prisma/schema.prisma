@@ -1,0 +1,373 @@
+// ClinicQueue TRD v1.0 - Prisma Schema for PostgreSQL
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum Role {
+  OWNER
+  RECEPTIONIST
+  CLINICIAN
+  PATIENT
+}
+
+enum AppointmentStatus {
+  REQUESTED
+  CONFIRMED
+  CANCELLED
+  COMPLETED
+  NO_SHOW
+  RESCHEDULED
+}
+
+enum QueueStatus {
+  WAITING
+  IN_CONSULTATION
+  COMPLETED
+  SKIPPED
+  CANCELLED
+}
+
+enum NotificationStatus {
+  SCHEDULED
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+enum FollowUpStatus {
+  UPCOMING
+  DUE
+  COMPLETED
+  RESCHEDULED
+  OVERDUE
+}
+
+model Clinic {
+  id          String   @id @default(uuid())
+  name        String
+  slug        String   @unique
+  address     String
+  timezone    String   @default("Asia/Kolkata")
+  phone       String
+  status      String   @default("ACTIVE") // ACTIVE, DELAYED, PAUSED, CLOSED
+  currentDelayMinutes Int @default(0)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  memberships   ClinicMembership[]
+  doctors       Doctor[]
+  schedules     DoctorSchedule[]
+  patients      Patient[]
+  appointments  Appointment[]
+  queueEntries  QueueEntry[]
+  visits        Visit[]
+  notifications Notification[]
+  auditLogs     AuditLog[]
+  consents      PatientConsent[]
+  followUps     FollowUpPlan[]
+  clinicalNotes ClinicalNote[]
+  prescriptions Prescription[]
+
+  @@map("clinics")
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String?  @unique
+  phone        String?  @unique
+  passwordHash String   @map("password_hash")
+  displayName  String   @map("display_name")
+  status       String   @default("ACTIVE")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  memberships  ClinicMembership[]
+  auditLogs    AuditLog[]         @relation("ActorAuditLogs")
+
+  @@map("users")
+}
+
+model ClinicMembership {
+  id        String   @id @default(uuid())
+  clinicId  String   @map("clinic_id")
+  userId    String   @map("user_id")
+  role      Role     @default(RECEPTIONIST)
+  status    String   @default("ACTIVE")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  clinic    Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([clinicId, userId])
+  @@map("clinic_memberships")
+}
+
+model Doctor {
+  id             String   @id @default(uuid())
+  clinicId       String   @map("clinic_id")
+  displayName    String   @map("display_name")
+  specialization String
+  qualification  String?
+  status         String   @default("AVAILABLE") // AVAILABLE, IN_CONSULTATION, ON_BREAK, OFF_DUTY
+  consultationFee Int     @default(300) @map("consultation_fee")
+  avgConsultationMinutes Int @default(15) @map("avg_consultation_minutes")
+
+  clinic         Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  schedules      DoctorSchedule[]
+  appointments   Appointment[]
+  queueEntries   QueueEntry[]
+  visits         Visit[]
+
+  @@map("doctors")
+}
+
+model DoctorSchedule {
+  id                 String   @id @default(uuid())
+  clinicId           String   @map("clinic_id")
+  doctorId           String   @map("doctor_id")
+  dayOfWeek          Int      @map("day_of_week") // 0 = Sunday, 1 = Monday ... 6 = Saturday
+  startTime          String   @map("start_time") // HH:mm format e.g. "09:00"
+  endTime            String   @map("end_time")   // HH:mm format e.g. "13:00"
+  breakConfiguration String?  @map("break_configuration") // JSON e.g. [{"start":"11:00","end":"11:30"}]
+  effectiveFrom      DateTime @default(now()) @map("effective_from")
+  effectiveUntil     DateTime? @map("effective_until")
+
+  clinic             Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  doctor             Doctor   @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+
+  @@map("doctor_schedules")
+}
+
+model Patient {
+  id               String   @id @default(uuid())
+  clinicId         String   @map("clinic_id")
+  patientReference String   @map("patient_reference") // Clinic-specific ID e.g. MRN-2026-001
+  displayName      String   @map("display_name")
+  phone            String
+  gender           String?
+  age              Int?
+  dateOfBirth      DateTime? @map("date_of_birth")
+  address          String?
+  preferredLanguage String  @default("en") @map("preferred_language") // en, hi, kn
+  whatsappConsent  Boolean  @default(true) @map("whatsapp_consent")
+  status           String   @default("ACTIVE")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  clinic           Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  consents         PatientConsent[]
+  appointments     Appointment[]
+  queueEntries     QueueEntry[]
+  visits           Visit[]
+  notifications    Notification[]
+  followUps        FollowUpPlan[]
+
+  @@unique([clinicId, patientReference])
+  @@index([clinicId, phone])
+  @@map("patients")
+}
+
+model PatientConsent {
+  id          String    @id @default(uuid())
+  clinicId    String    @map("clinic_id")
+  patientId   String    @map("patient_id")
+  purpose     String    // APPOINTMENT_REMINDER, FOLLOWUP_REMINDER, HEALTH_INFO
+  channel     String    @default("WHATSAPP") // WHATSAPP, SMS
+  status      String    @default("GRANTED")  // GRANTED, REVOKED
+  capturedAt  DateTime  @default(now()) @map("captured_at")
+  withdrawnAt DateTime? @map("withdrawn_at")
+  recordedBy  String    @map("recorded_by")
+
+  clinic      Clinic    @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient     Patient   @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@map("patient_consents")
+}
+
+model Appointment {
+  id             String            @id @default(uuid())
+  clinicId       String            @map("clinic_id")
+  doctorId       String            @map("doctor_id")
+  patientId      String            @map("patient_id")
+  scheduledStart DateTime          @map("scheduled_start")
+  scheduledEnd   DateTime          @map("scheduled_end")
+  status         AppointmentStatus @default(REQUESTED)
+  source         String            @default("ONLINE") // ONLINE, RECEPTION, PHONE
+  reason         String?
+  confirmedAt    DateTime?         @map("confirmed_at")
+  cancelledAt    DateTime?         @map("cancelled_at")
+  createdAt      DateTime          @default(now()) @map("created_at")
+  updatedAt      DateTime          @updatedAt @map("updated_at")
+
+  clinic         Clinic            @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  doctor         Doctor            @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  patient        Patient           @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  queueEntries   QueueEntry[]
+  visits         Visit[]
+  notifications  Notification[]
+
+  @@index([clinicId, scheduledStart])
+  @@map("appointments")
+}
+
+model QueueEntry {
+  id                    String      @id @default(uuid())
+  clinicId              String      @map("clinic_id")
+  doctorId              String      @map("doctor_id")
+  patientId             String      @map("patient_id")
+  appointmentId         String?     @map("appointment_id")
+  queueSessionId        String      @map("queue_session_id") // Typically clinicId:YYYY-MM-DD:session
+  tokenNumber           Int         @map("token_number")
+  status                QueueStatus @default(WAITING)
+  priority              Int         @default(0) // 0: Normal, 1: Priority/Senior, 2: Emergency
+  estimatedWaitMinutes  Int         @default(15) @map("estimated_wait_minutes")
+  checkedInAt           DateTime    @default(now()) @map("checked_in_at")
+  consultationStartedAt DateTime?   @map("consultation_started_at")
+  completedAt           DateTime?   @map("completed_at")
+  createdAt             DateTime    @default(now()) @map("created_at")
+  updatedAt             DateTime    @updatedAt @map("updated_at")
+
+  clinic                Clinic      @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  doctor                Doctor      @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  patient               Patient     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  appointment           Appointment? @relation(fields: [appointmentId], references: [id])
+  visits                Visit[]
+
+  @@unique([clinicId, queueSessionId, tokenNumber])
+  @@index([clinicId, queueSessionId, status])
+  @@map("queue_entries")
+}
+
+model Visit {
+  id           String        @id @default(uuid())
+  clinicId     String        @map("clinic_id")
+  patientId    String        @map("patient_id")
+  doctorId     String        @map("doctor_id")
+  appointmentId String?      @map("appointment_id")
+  queueEntryId String?       @map("queue_entry_id")
+  visitDate    DateTime      @default(now()) @map("visit_date")
+  status       String        @default("COMPLETED")
+  createdAt    DateTime      @default(now()) @map("created_at")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
+
+  clinic        Clinic        @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient       Patient       @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  doctor        Doctor        @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  appointment   Appointment?  @relation(fields: [appointmentId], references: [id])
+  queueEntry    QueueEntry?   @relation(fields: [queueEntryId], references: [id])
+  clinicalNotes ClinicalNote[]
+  prescriptions Prescription[]
+  followUps     FollowUpPlan[]
+
+  @@index([clinicId, visitDate])
+  @@map("visits")
+}
+
+model ClinicalNote {
+  id             String   @id @default(uuid())
+  clinicId       String   @map("clinic_id")
+  visitId        String   @map("visit_id")
+  reasonForVisit String   @map("reason_for_visit")
+  assessment     String?  // Diagnosis / Evaluation
+  clinicalNotes  String?  @map("clinical_notes")
+  authorId       String   @map("author_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  clinic         Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  visit          Visit    @relation(fields: [visitId], references: [id], onDelete: Cascade)
+
+  @@map("clinical_notes")
+}
+
+model Prescription {
+  id           String   @id @default(uuid())
+  clinicId     String   @map("clinic_id")
+  visitId      String   @map("visit_id")
+  medicineName String   @map("medicine_name")
+  strength     String?  // e.g. "500mg"
+  dosage       String   // e.g. "1 tablet"
+  frequency    String   // e.g. "1-0-1 (Morning & Night)"
+  duration     String   // e.g. "5 days"
+  instructions String?  // e.g. "After food"
+  prescribedBy String   @map("prescribed_by")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  clinic       Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  visit        Visit    @relation(fields: [visitId], references: [id], onDelete: Cascade)
+
+  @@map("prescriptions")
+}
+
+model FollowUpPlan {
+  id            String         @id @default(uuid())
+  clinicId      String         @map("clinic_id")
+  visitId       String         @map("visit_id")
+  patientId     String         @map("patient_id")
+  scheduledDate DateTime       @map("scheduled_date")
+  status        FollowUpStatus @default(UPCOMING)
+  notes         String?
+  createdBy     String         @map("created_by")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  clinic        Clinic         @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  visit         Visit          @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  patient       Patient        @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  notifications Notification[]
+
+  @@index([clinicId, scheduledDate, status])
+  @@map("follow_up_plans")
+}
+
+model Notification {
+  id                String             @id @default(uuid())
+  clinicId          String             @map("clinic_id")
+  patientId         String             @map("patient_id")
+  appointmentId     String?            @map("appointment_id")
+  followUpId        String?            @map("follow_up_id")
+  channel           String             @default("WHATSAPP")
+  notificationType  String             @map("notification_type") // CONFIRMATION, REMINDER_24H, QUEUE_ALERT, FOLLOW_UP, DELAY_ALERT
+  recipientPhone    String             @map("recipient_phone")
+  messageContent    String             @map("message_content")
+  templateName      String             @map("template_name")
+  scheduledAt       DateTime           @map("scheduled_at")
+  status            NotificationStatus @default(SCHEDULED)
+  providerMessageId String?            @map("provider_message_id")
+  attemptCount      Int                @default(0) @map("attempt_count")
+  lastErrorCode     String?            @map("last_error_code")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+
+  clinic            Clinic             @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  patient           Patient            @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  appointment       Appointment?       @relation(fields: [appointmentId], references: [id])
+  followUp          FollowUpPlan?      @relation(fields: [followUpId], references: [id])
+
+  @@index([clinicId, status, scheduledAt])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id           String   @id @default(uuid())
+  clinicId     String   @map("clinic_id")
+  actorUserId  String   @map("actor_user_id")
+  action       String   // e.g. "QUEUE_STATUS_UPDATED", "TOKEN_GENERATED", "PRESCRIPTION_CREATED"
+  resourceType String   @map("resource_type")
+  resourceId   String   @map("resource_id")
+  requestId    String?  @map("request_id")
+  metadata     String?  // JSON string
+  occurredAt   DateTime @default(now()) @map("occurred_at")
+
+  clinic       Clinic   @relation(fields: [clinicId], references: [id], onDelete: Cascade)
+  actor        User     @relation("ActorAuditLogs", fields: [actorUserId], references: [id], onDelete: Cascade)
+
+  @@index([clinicId, occurredAt])
+  @@map("audit_logs")
+}

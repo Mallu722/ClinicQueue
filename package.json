@@ -1,40 +1,23 @@
 {
-  "name": "clinicqueue",
+  "name": "clinicqueue-monorepo",
   "version": "1.0.0",
-  "description": "ClinicQueue - A modern clinic appointment and queue management system",
-  "type": "module",
+  "description": "ClinicQueue - Multilingual Clinic Operations & Queue Management SaaS for Tier-2 and Tier-3 India",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview",
-    "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0"
+    "dev": "npm --prefix backend run dev & npm --prefix frontend run dev",
+    "dev:backend": "npm --prefix backend run dev",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build:backend": "npm --prefix backend run build",
+    "build:frontend": "npm --prefix frontend run build",
+    "build": "npm run build:backend && npm run build:frontend"
   },
-  "dependencies": {
-    "class-variance-authority": "^0.7.1",
-    "clsx": "^2.1.1",
-    "framer-motion": "^11.11.11",
-    "lucide-react": "^0.453.0",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "react-hook-form": "^7.53.1",
-    "react-router-dom": "^6.27.0",
-    "recharts": "^2.13.0",
-    "tailwind-merge": "^3.7.0",
-    "zod": "^3.23.8"
-  },
-  "devDependencies": {
-    "@types/react": "^18.3.11",
-    "@types/react-dom": "^18.3.1",
-    "@typescript-eslint/eslint-plugin": "^8.17.0",
-    "@typescript-eslint/parser": "^8.17.0",
-    "@vitejs/plugin-react": "^4.3.3",
-    "autoprefixer": "^10.4.20",
-    "eslint": "^8.57.1",
-    "eslint-plugin-react-hooks": "^5.0.0",
-    "eslint-plugin-react-refresh": "^0.4.13",
-    "postcss": "^8.4.47",
-    "tailwindcss": "^3.4.14",
-    "typescript": "~5.6.2",
-    "vite": "^5.4.10"
-  }
+  "keywords": [
+    "healthcare",
+    "clinic-management",
+    "queue-management",
+    "whatsapp-notifications",
+    "saas",
+    "tier-2-india"
+  ],
+  "author": "ClinicQueue Engineering",
+  "license": "ISC"
 }
