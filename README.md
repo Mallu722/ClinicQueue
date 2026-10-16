@@ -9,6 +9,7 @@
 
 In accordance with TRD v1.0, the codebase is cleanly partitioned into modular frontend and backend applications:
 
+
 ```text
 ClinicQueue/
 ├── backend/                       # Node.js + Express + TypeScript + Prisma ORM
@@ -111,3 +112,6 @@ npm run dev
 *Book Appointment: http://localhost:5173/public/book*  
 *Waiting Lounge TV Display: http://localhost:5173/public/tv*  
 *Staff Portal: http://localhost:5173/portal*
+
+
+ClinicQue
