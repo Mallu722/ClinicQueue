@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
+import { Navigate } from 'react-router-dom'
 import { 
   Calendar, 
   User, 
@@ -10,12 +11,21 @@ import {
 } from 'lucide-react'
 import { useTranslation } from '../../context/ThemeContext'
 import { useToast } from '../../context/ToastContext'
+import { useClinic } from '../../context/ClinicContext'
+import { useAuth } from '../../context/AuthContext'
 
 export default function BookAppointmentPublic() {
   const { t } = useTranslation()
   const { addToast } = useToast()
+  const { bookNewAppointment, doctors } = useClinic()
+  const { isAuthenticated } = useAuth()
 
-  const [doctor, setDoctor] = useState('doc-ramesh-hegde')
+  // Requirement: anyone trying to book a slot must be taken to the login page
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />
+  }
+
+  const [doctor, setDoctor] = useState('doc-1')
   const [date, setDate] = useState(new Date().toISOString().split('T')[0])
   const [selectedSlot, setSelectedSlot] = useState('10:30 AM')
   const [fullName, setFullName] = useState('')
@@ -54,12 +64,25 @@ export default function BookAppointmentPublic() {
     setIsSubmitting(true)
     setTimeout(() => {
       setIsSubmitting(false)
-      const docName = doctor === 'doc-ramesh-hegde' ? 'Dr. Ramesh Hegde (MD Diabetologist)' : 'Dr. Ananya Rao (Pediatrician)'
+      const selectedDocObj = doctors.find(d => d.id === doctor || d.name.toLowerCase().includes(doctor.toLowerCase())) || doctors[0]
+      
+      const req = bookNewAppointment({
+        patientName: fullName,
+        patientPhone: phone,
+        patientAge: parseInt(age) || 30,
+        patientGender: gender as any,
+        doctorId: selectedDocObj.id,
+        doctorName: selectedDocObj.name,
+        date,
+        timeSlot: selectedSlot,
+        reason: reason || 'Scheduled OPD consultation',
+      })
+
       const bookingData = {
-        bookingId: `APT-${Math.floor(1000 + Math.random() * 9000)}`,
+        bookingId: req.bookingId,
         patientName: fullName,
         phone,
-        doctor: docName,
+        doctor: selectedDocObj.name,
         date,
         time: selectedSlot,
         clinic: 'Shanti Ayush Health Clinic, Hubli',
@@ -67,9 +90,10 @@ export default function BookAppointmentPublic() {
       setSubmitted(bookingData)
       addToast({
         title: t.bookingSuccessTitle,
+        message: 'Request forwarded to reception desk.',
         type: 'success',
       })
-    }, 500)
+    }, 400)
   }
 
   return (

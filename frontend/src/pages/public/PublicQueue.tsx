@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { useTranslation } from '../../context/ThemeContext'
 import { useToast } from '../../context/ToastContext'
+import { useClinic, sortQueueInOrder } from '../../context/ClinicContext'
 
 interface PatientInfo {
   tokenNumber: number
@@ -27,17 +28,13 @@ interface PatientInfo {
 export default function PublicQueue() {
   const { t } = useTranslation()
   const { addToast } = useToast()
+  const { queue, currentServingToken } = useClinic()
   const [tokenInput, setTokenInput] = useState('')
   const [patientInfo, setPatientInfo] = useState<PatientInfo | null>(null)
   const [isSearching, setIsSearching] = useState(false)
 
-  // Live Queue Board Mock / Synced with backend
-  const liveQueue = [
-    { tokenNumber: 101, patientName: 'Suresh K.', doctor: 'Dr. Ramesh Hegde', status: 'IN_CONSULTATION', time: '10:00 AM' },
-    { tokenNumber: 102, patientName: 'Laxmi D.', doctor: 'Dr. Ramesh Hegde', status: 'WAITING', time: '10:30 AM' },
-    { tokenNumber: 103, patientName: 'Manjunath K.', doctor: 'Dr. Ramesh Hegde', status: 'WAITING', time: '10:50 AM' },
-    { tokenNumber: 104, patientName: 'Fatima B.', doctor: 'Dr. Ramesh Hegde', status: 'WAITING', time: '11:10 AM' },
-  ]
+  // Live Queue Board strictly sorted in order
+  const liveQueue = sortQueueInOrder(queue.filter(q => q.status === 'WAITING' || q.status === 'IN_CONSULTATION'))
 
   const handleCheckStatus = (e?: React.FormEvent) => {
     if (e) e.preventDefault()
@@ -54,43 +51,18 @@ export default function PublicQueue() {
       setIsSearching(false)
       const num = parseInt(tokenInput.replace(/\D/g, ''), 10)
 
-      if (num === 101) {
+      const matched = queue.find(q => q.tokenNumber === num || q.patientPhone.includes(tokenInput))
+      if (matched) {
         setPatientInfo({
-          tokenNumber: 101,
-          patientName: 'Suresh Kumar',
-          phone: '+91 98450 44444',
-          doctor: 'Dr. Ramesh Hegde',
-          specialization: 'General Physician & Diabetologist',
-          status: 'IN_CONSULTATION',
-          position: 0,
-          estimatedWaitTime: 'Now Inside Cabin',
-          reason: 'Type-2 Diabetes 3-month review',
-          whatsappSent: true,
-        })
-      } else if (num === 102) {
-        setPatientInfo({
-          tokenNumber: 102,
-          patientName: 'Laxmi Desai',
-          phone: '+91 98450 55555',
-          doctor: 'Dr. Ramesh Hegde',
-          specialization: 'General Physician & Diabetologist',
-          status: 'WAITING',
-          position: 1,
-          estimatedWaitTime: '8-12 mins',
-          reason: 'Viral fever and throat infection',
-          whatsappSent: true,
-        })
-      } else if (num === 103) {
-        setPatientInfo({
-          tokenNumber: 103,
-          patientName: 'Manjunath Kamath',
-          phone: '+91 98450 66666',
-          doctor: 'Dr. Ramesh Hegde',
-          specialization: 'General Physician & Diabetologist',
-          status: 'WAITING',
-          position: 2,
-          estimatedWaitTime: '20-25 mins',
-          reason: 'Joint pain & senior health review',
+          tokenNumber: matched.tokenNumber,
+          patientName: matched.patientName,
+          phone: matched.patientPhone,
+          doctor: matched.doctorName,
+          specialization: 'Attending OPD Specialist',
+          status: matched.status === 'IN_CONSULTATION' ? 'IN_CONSULTATION' : 'WAITING',
+          position: Math.max(0, matched.tokenNumber - currentServingToken),
+          estimatedWaitTime: matched.status === 'IN_CONSULTATION' ? 'Now Inside Cabin' : `~${matched.estimatedWaitMinutes} mins`,
+          reason: matched.reason,
           whatsappSent: true,
         })
       } else {
@@ -101,14 +73,14 @@ export default function PublicQueue() {
           phone: '+91 98450 XXXXX',
           doctor: 'Dr. Ramesh Hegde',
           specialization: 'General Physician & Diabetologist',
-          status: 'WAITING',
-          position: Math.max(1, tokenNum - 101),
-          estimatedWaitTime: `${Math.max(10, (tokenNum - 101) * 12)} mins`,
+          status: tokenNum === currentServingToken ? 'IN_CONSULTATION' : 'WAITING',
+          position: Math.max(1, tokenNum - currentServingToken),
+          estimatedWaitTime: `${Math.max(8, (tokenNum - currentServingToken) * 6)} mins`,
           reason: 'OPD Consultation',
           whatsappSent: true,
         })
       }
-    }, 350)
+    }, 400)
   }
 
   return (
@@ -290,8 +262,8 @@ export default function PublicQueue() {
                         #{item.tokenNumber}
                       </span>
                     </td>
-                    <td className="py-3.5 px-6 text-slate-900 dark:text-white">{item.patientName}</td>
-                    <td className="py-3.5 px-6 text-slate-600 dark:text-slate-300">{item.doctor}</td>
+                    <td className="py-3.5 px-6 text-slate-900 dark:text-white font-bold">{item.patientName}</td>
+                    <td className="py-3.5 px-6 text-slate-600 dark:text-slate-300 font-semibold">{item.doctorName}</td>
                     <td className="py-3.5 px-6">
                       <span className={`badge ${
                         item.status === 'IN_CONSULTATION' ? 'badge-emerald' : 'badge-amber'
@@ -299,7 +271,7 @@ export default function PublicQueue() {
                         {item.status === 'IN_CONSULTATION' ? 'In Cabin' : 'Waiting in Lounge'}
                       </span>
                     </td>
-                    <td className="py-3.5 px-6 text-slate-500">{item.time}</td>
+                    <td className="py-3.5 px-6 text-slate-500">~{item.estimatedWaitMinutes} mins</td>
                   </tr>
                 ))}
               </tbody>

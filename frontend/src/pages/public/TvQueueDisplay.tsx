@@ -1,21 +1,17 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
-import { Volume2, VolumeX, Maximize2, Activity, Clock, Stethoscope } from 'lucide-react'
-import { useTranslation } from '../../context/ThemeContext'
+import { Volume2, VolumeX, Maximize2, Clock, Stethoscope } from 'lucide-react'
+import { useClinic, sortQueueInOrder } from '../../context/ClinicContext'
+import MedicalLogo from '../../components/brand/MedicalLogo'
 
 export default function TvQueueDisplay() {
-  const { t } = useTranslation()
+  const { queue, currentServingToken, doctors } = useClinic()
   const [audioEnabled, setAudioEnabled] = useState(false)
   const [time, setTime] = useState(new Date().toLocaleTimeString('en-IN'))
 
-  const [currentToken] = useState(101)
-  const [doctor] = useState('Dr. Ramesh Hegde (Cabin 1)')
-  const [upcoming] = useState([
-    { token: 102, name: 'Laxmi Desai', estWait: '8 mins' },
-    { token: 103, name: 'Manjunath Kamath', estWait: '18 mins' },
-    { token: 104, name: 'Fatima Begum', estWait: '30 mins' },
-    { token: 105, name: 'Ravi Teja', estWait: '42 mins' },
-  ])
+  const currentInConsultation = queue.find(q => q.status === 'IN_CONSULTATION') || queue[0]
+  const currentDoctor = doctors.find(d => d.id === currentInConsultation?.doctorId) || doctors[0]
+  const upcoming = sortQueueInOrder(queue.filter(q => q.status === 'WAITING'))
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -36,19 +32,7 @@ export default function TvQueueDisplay() {
     <div className="min-h-screen bg-slate-950 text-white flex flex-col justify-between p-4 sm:p-8 select-none">
       {/* TV Header Bar */}
       <header className="flex items-center justify-between border-b border-slate-800 pb-4">
-        <div className="flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-teal-500 flex items-center justify-center font-bold text-white shadow-lg shadow-teal-500/30">
-            <Activity size={28} />
-          </div>
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white">
-              {t.clinicName}
-            </h1>
-            <p className="text-xs sm:text-sm text-teal-400 font-medium">
-              OPD Waiting Lounge Display • Vidyanagar, Hubli
-            </p>
-          </div>
-        </div>
+        <MedicalLogo to="/" subtitle="OPD Waiting Lounge Display • Vidyanagar, Hubli" size="lg" />
 
         <div className="flex items-center gap-4">
           <div className="text-right">
@@ -95,18 +79,18 @@ export default function TvQueueDisplay() {
 
             <div className="py-6 sm:py-8 space-y-4">
               <p className="text-sm uppercase tracking-wider text-slate-400 font-semibold">
-                Please Enter Cabin 1
+                Please Enter {currentDoctor.room}
               </p>
               <div className="inline-flex items-center justify-center w-48 h-48 sm:w-60 sm:h-60 rounded-3xl bg-gradient-to-tr from-teal-500 via-teal-400 to-emerald-400 text-slate-950 font-black text-7xl sm:text-8xl shadow-2xl shadow-teal-500/40 border-4 border-white animate-pulse-slow">
-                #{currentToken}
+                #{currentServingToken}
               </div>
               <div className="space-y-1">
                 <h3 className="text-2xl sm:text-3xl font-extrabold text-white">
-                  Suresh Kumar
+                  {currentInConsultation?.patientName || 'Waiting for Patient'}
                 </h3>
                 <p className="text-sm font-semibold text-teal-400 flex items-center justify-center gap-2">
                   <Stethoscope size={18} />
-                  <span>{doctor}</span>
+                  <span>{currentDoctor.name} ({currentDoctor.room})</span>
                 </p>
               </div>
             </div>
@@ -130,7 +114,7 @@ export default function TvQueueDisplay() {
           <div className="space-y-3">
             {upcoming.map((item, idx) => (
               <motion.div
-                key={item.token}
+                key={item.id}
                 initial={{ opacity: 0, x: 20 }}
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: idx * 0.1 }}
@@ -146,11 +130,11 @@ export default function TvQueueDisplay() {
                       ? 'bg-teal-500 text-slate-950'
                       : 'bg-slate-800 text-slate-300'
                   }`}>
-                    #{item.token}
+                    #{item.tokenNumber}
                   </div>
                   <div>
-                    <h4 className="font-bold text-base text-white">{item.name}</h4>
-                    <p className="text-xs text-slate-400">Approx wait: {item.estWait}</p>
+                    <h4 className="font-bold text-base text-white">{item.patientName}</h4>
+                    <p className="text-xs text-slate-400">Approx wait: {item.estimatedWaitMinutes || (idx + 1) * 8} mins</p>
                   </div>
                 </div>
 
