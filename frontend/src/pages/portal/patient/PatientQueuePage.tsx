@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useClinic, sortQueueInOrder } from '../../../context/ClinicContext'
 import { useAuth } from '../../../context/AuthContext'
@@ -6,22 +7,29 @@ import {
   CheckCircle2, 
   Bell, 
   MapPin, 
-  Volume2
+  Volume2,
+  Stethoscope
 } from 'lucide-react'
 
 export default function PatientQueuePage() {
   const { user } = useAuth()
   const { queue, currentServingToken, nextAlertToken, doctors } = useClinic()
 
-  // Match patient token
-  const myQueueItem = queue.find(q => q.patientPhone === user?.phone || q.patientName.toLowerCase().includes('suresh'))
-  const userToken = myQueueItem ? myQueueItem.tokenNumber : 103
+  // Match patient token strictly
+  const cleanPhone = user?.phone ? user.phone.replace(/\D/g, '') : ''
+  const myQueueItem = queue.find(q => {
+    const qPhone = q.patientPhone ? q.patientPhone.replace(/\D/g, '') : ''
+    if (cleanPhone && qPhone && cleanPhone === qPhone) return true
+    if (user?.name && user.name.toLowerCase() !== 'verified patient' && q.patientName.toLowerCase() === user.name.toLowerCase()) return true
+    return false
+  })
+  const userToken = myQueueItem ? myQueueItem.tokenNumber : null
 
-  const isMyTurnNow = currentServingToken === userToken
-  const isMyTurnNext = nextAlertToken === userToken
+  const isMyTurnNow = userToken !== null && currentServingToken === userToken
+  const isMyTurnNext = userToken !== null && nextAlertToken === userToken
 
   // Doctor assigned
-  const doctor = doctors.find(d => d.id === myQueueItem?.doctorId) || doctors[0]
+  const doctor = myQueueItem ? (doctors.find(d => d.id === myQueueItem?.doctorId) || doctors[0]) : doctors[0]
 
   // Strictly sorted live queue
   const sortedQueue = sortQueueInOrder(
@@ -29,9 +37,9 @@ export default function PatientQueuePage() {
   )
 
   // Calculate position ahead
-  const waitingAhead = sortedQueue.filter(
+  const waitingAhead = userToken !== null ? sortedQueue.filter(
     q => q.status === 'WAITING' && q.tokenNumber < userToken
-  ).length
+  ).length : 0
 
   const estWaitMins = isMyTurnNow ? 0 : isMyTurnNext ? 3 : (waitingAhead + 1) * 6
 
@@ -127,23 +135,48 @@ export default function PatientQueuePage() {
               <span className="badge badge-teal text-[11px] font-bold">Synchronized</span>
             </div>
 
-            {/* Giant Token Counter */}
-            <div className="text-center py-4 space-y-3">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                Your Assigned OPD Token
-              </span>
-              <div className="inline-flex items-center justify-center w-28 h-28 rounded-3xl bg-gradient-to-tr from-teal-600 via-teal-500 to-emerald-500 text-white font-black text-5xl shadow-xl shadow-teal-500/25 border-4 border-white dark:border-slate-800">
-                #{userToken}
+            {/* Giant Token Counter or Empty State */}
+            {userToken !== null ? (
+              <div className="text-center py-4 space-y-3">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                  Your Assigned OPD Token
+                </span>
+                <div className="inline-flex items-center justify-center w-28 h-28 rounded-3xl bg-gradient-to-tr from-teal-600 via-teal-500 to-emerald-500 text-white font-black text-5xl shadow-xl shadow-teal-500/25 border-4 border-white dark:border-slate-800">
+                  #{userToken}
+                </div>
+                <div>
+                  <h4 className="font-extrabold text-slate-900 dark:text-white text-base">
+                    {doctor.name}
+                  </h4>
+                  <p className="text-xs text-teal-600 dark:text-teal-400 font-semibold">
+                    {doctor.room} • {myQueueItem?.reason || 'Routine Consultation'}
+                  </p>
+                </div>
               </div>
-              <div>
-                <h4 className="font-extrabold text-slate-900 dark:text-white text-base">
-                  {doctor.name}
-                </h4>
-                <p className="text-xs text-teal-600 dark:text-teal-400 font-semibold">
-                  {doctor.room} • {myQueueItem?.reason || 'Routine Consultation'}
-                </p>
+            ) : (
+              <div className="text-center py-6 space-y-4">
+                <div className="w-20 h-20 rounded-3xl bg-slate-100 dark:bg-slate-800 text-slate-400 mx-auto flex items-center justify-center border-2 border-dashed border-slate-300 dark:border-slate-700">
+                  <Clock size={36} />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="font-extrabold text-slate-900 dark:text-white text-base">
+                    You Are Not in the Live Queue Yet
+                  </h4>
+                  <p className="text-xs text-slate-500 max-w-xs mx-auto">
+                    To join the queue and track your position live, book an appointment or scan the clinic QR code at desk #4.
+                  </p>
+                </div>
+                <div className="pt-2 flex flex-col gap-2">
+                  <Link
+                    to="/portal/patient"
+                    className="btn btn-primary py-2.5 px-4 text-xs font-bold flex items-center justify-center gap-2 shadow-md"
+                  >
+                    <Stethoscope size={15} />
+                    <span>Choose Doctor & Get Token</span>
+                  </Link>
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Live Queue Comparison Grid */}
             <div className="grid grid-cols-3 gap-2.5 py-4 border-y border-slate-100 dark:border-slate-800 text-center">
@@ -186,7 +219,9 @@ export default function PatientQueuePage() {
                 />
               </div>
               <p className="text-[11px] text-slate-400 pt-1 leading-relaxed">
-                Tokens advance sequentially in strict order. You will hear an audible chime and see a banner when Token #{userToken - 1} enters.
+                {userToken !== null
+                  ? `Tokens advance sequentially in strict order. You will hear an audible chime and see a banner when Token #${userToken - 1} enters.`
+                  : 'Tokens advance sequentially in strict order. Please stay near the waiting lounge when your token is called.'}
               </p>
             </div>
           </div>

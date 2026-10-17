@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useClinic, VisitHistoryRecord } from '../../../context/ClinicContext'
 import { useAuth } from '../../../context/AuthContext'
@@ -12,18 +13,23 @@ import {
   Check, 
   AlertTriangle, 
   X, 
-  Search
+  Search,
+  ShieldCheck,
+  Edit2
 } from 'lucide-react'
 
 export default function PatientHistoryPage() {
   const { user } = useAuth()
-  const { patients } = useClinic()
+  const { getPatientProfileForUser, updatePatientDemographics } = useClinic()
 
-  // Match current patient
-  const patient = patients.find(p => p.phone === user?.phone || p.name.toLowerCase().includes('suresh')) || patients[0]
+  // Match current patient strictly — new users get clean, pristine first-time profile!
+  const patient = getPatientProfileForUser(user)
 
   const [searchFilter, setSearchFilter] = useState('')
   const [selectedVisitForPrint, setSelectedVisitForPrint] = useState<VisitHistoryRecord | null>(null)
+  const [showEditDemographics, setShowEditDemographics] = useState(false)
+  const [editBloodGroup, setEditBloodGroup] = useState(patient.bloodGroup || 'B+')
+  const [editAllergies, setEditAllergies] = useState(patient.allergies.join(', '))
 
   // Interactive pill tracker state for today
   const [takenPills, setTakenPills] = useState<Record<string, boolean>>({
@@ -51,6 +57,21 @@ export default function PatientHistoryPage() {
   const latestVisit = patient.visits[0]
   const activeTablets = latestVisit?.prescriptions || []
 
+  const handleSaveDemographics = (e: React.FormEvent) => {
+    e.preventDefault()
+    const parsedAllergies = editAllergies
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean)
+    updatePatientDemographics(patient.id, {
+      bloodGroup: editBloodGroup,
+      allergies: parsedAllergies,
+    })
+    setShowEditDemographics(false)
+  }
+
+  const isNewPatient = patient.visits.length === 0
+
   return (
     <div className="space-y-8">
       {/* Patient Profile Summary Card */}
@@ -59,13 +80,19 @@ export default function PatientHistoryPage() {
           <div>
             <div className="flex items-center gap-2">
               <span className="badge badge-teal text-xs font-bold uppercase">Electronic Health Record (EHR)</span>
-              <span className="badge badge-emerald text-xs font-bold">Lifetime Record</span>
+              {isNewPatient ? (
+                <span className="badge bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-700 text-xs font-bold">
+                  First-Time Patient Profile
+                </span>
+              ) : (
+                <span className="badge badge-emerald text-xs font-bold">Lifetime Record</span>
+              )}
             </div>
             <h2 className="text-2xl font-black text-slate-900 dark:text-white mt-1">
               Medical History & Past Prescriptions
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Patient: <strong className="text-slate-800 dark:text-slate-200">{patient.name}</strong> • MRN: {patient.mrn} • Phone: {patient.phone}
+              Patient: <strong className="text-slate-800 dark:text-slate-200">{patient.name}</strong> • MRN: {patient.mrn} • Phone: {patient.phone || 'Not Registered'}
             </p>
           </div>
 
@@ -87,40 +114,65 @@ export default function PatientHistoryPage() {
 
         {/* Patient Vitals & Health Alerts Strip */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
-          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
-            <span className="text-slate-400 font-semibold block mb-1">Blood Group & Demographics:</span>
-            <div className="flex items-center gap-2">
-              <span className="w-7 h-7 rounded-lg bg-rose-100 dark:bg-rose-950 text-rose-600 font-black flex items-center justify-center text-xs">
-                {patient.bloodGroup}
-              </span>
-              <span className="font-bold text-slate-800 dark:text-slate-200">
-                {patient.age} Yrs • {patient.gender}
-              </span>
+          <div className="p-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex items-center justify-between">
+            <div>
+              <span className="text-slate-400 font-semibold block mb-1">Blood Group & Demographics:</span>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="px-2 py-1 rounded-lg bg-rose-100 dark:bg-rose-950 text-rose-600 font-extrabold text-[11px] whitespace-nowrap">
+                  {patient.bloodGroup || 'Not Recorded'}
+                </span>
+                <span className="font-bold text-slate-800 dark:text-slate-200">
+                  {patient.age ? `${patient.age} Yrs` : 'Age N/A'} • {patient.gender}
+                </span>
+              </div>
             </div>
+            <button
+              onClick={() => {
+                setEditBloodGroup(patient.bloodGroup || 'B+')
+                setEditAllergies(patient.allergies.join(', '))
+                setShowEditDemographics(true)
+              }}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-teal-600 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+              title="Edit Demographics & Allergies"
+            >
+              <Edit2 size={14} />
+            </button>
           </div>
 
-          <div className="p-3.5 rounded-2xl bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200/60 dark:border-amber-900/60 sm:col-span-2">
-            <span className="text-amber-700 dark:text-amber-400 font-bold flex items-center gap-1.5 mb-1">
-              <AlertTriangle size={14} />
-              <span>Documented Clinical Allergies:</span>
-            </span>
-            <div className="flex flex-wrap gap-1.5">
-              {patient.allergies.length > 0 ? (
-                patient.allergies.map((all, i) => (
-                  <span key={i} className="px-2.5 py-0.5 rounded-md bg-white dark:bg-slate-900 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 text-[11px] font-bold">
-                    ⚠️ {all}
-                  </span>
-                ))
-              ) : (
-                <span className="text-slate-500 font-medium">No known drug allergies reported.</span>
-              )}
+          <div className="p-3.5 rounded-2xl bg-amber-50/70 dark:bg-amber-950/40 border border-amber-200/60 dark:border-amber-900/60 sm:col-span-2 flex items-start justify-between gap-2">
+            <div>
+              <span className="text-amber-700 dark:text-amber-400 font-bold flex items-center gap-1.5 mb-1">
+                <AlertTriangle size={14} />
+                <span>Documented Clinical Allergies:</span>
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {patient.allergies.length > 0 ? (
+                  patient.allergies.map((all, i) => (
+                    <span key={i} className="px-2.5 py-0.5 rounded-md bg-white dark:bg-slate-900 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 text-[11px] font-bold">
+                      ⚠️ {all}
+                    </span>
+                  ))
+                ) : (
+                  <span className="text-slate-500 font-medium">No known drug allergies reported.</span>
+                )}
+              </div>
             </div>
+            <button
+              onClick={() => {
+                setEditBloodGroup(patient.bloodGroup || 'B+')
+                setEditAllergies(patient.allergies.join(', '))
+                setShowEditDemographics(true)
+              }}
+              className="btn btn-secondary py-1 px-2.5 text-[11px] font-semibold text-amber-800 dark:text-amber-300 shrink-0"
+            >
+              Update
+            </button>
           </div>
         </div>
       </div>
 
-      {/* TODAY'S MEDICINE SCHEDULE / PILL TRACKER WIDGET (Attractive idea) */}
-      {activeTablets.length > 0 && (
+      {/* TODAY'S MEDICINE SCHEDULE / PILL TRACKER WIDGET */}
+      {activeTablets.length > 0 ? (
         <div className="card p-6 bg-gradient-to-r from-teal-900 via-teal-800 to-slate-900 text-white rounded-3xl shadow-xl relative overflow-hidden space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/10 pb-3">
             <div className="flex items-center gap-2.5">
@@ -135,7 +187,7 @@ export default function PatientHistoryPage() {
                   </span>
                 </h3>
                 <p className="text-xs text-teal-200">
-                  Daily dosage tracker based on Dr. {latestVisit.doctorName}'s latest prescription.
+                  Daily dosage tracker based on Dr. {latestVisit?.doctorName || 'Doctor'}'s latest prescription.
                 </p>
               </div>
             </div>
@@ -173,6 +225,23 @@ export default function PatientHistoryPage() {
             })}
           </div>
         </div>
+      ) : (
+        <div className="card p-5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-2xl bg-teal-50 dark:bg-teal-950/70 text-teal-600 dark:text-teal-400 flex items-center justify-center shrink-0">
+              <Pill size={20} />
+            </div>
+            <div>
+              <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                Today's Prescribed Tablet Schedule
+              </h4>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                No active prescription schedules. When your doctor writes a digital prescription during your OPD visit, daily medicine reminders will automatically appear here.
+              </p>
+            </div>
+          </div>
+          <span className="badge badge-teal text-xs font-semibold whitespace-nowrap self-start sm:self-auto">0 Active Rx</span>
+        </div>
       )}
 
       {/* Visits Search Bar */}
@@ -183,25 +252,86 @@ export default function PatientHistoryPage() {
             <span>Consultation History & Prescriptions ({patient.visits.length} Visits)</span>
           </h3>
           <p className="text-xs text-slate-500">
-            Review detailed diagnoses, recorded vitals, and tablets prescribed during each visit.
+            {isNewPatient 
+              ? 'Complete your first OPD consultation to receive your digital prescription slip and doctor notes.'
+              : 'Review detailed diagnoses, recorded vitals, and tablets prescribed during each visit.'}
           </p>
         </div>
 
-        <div className="relative w-full sm:w-72">
-          <Search size={16} className="absolute left-3 top-3 text-slate-400" />
-          <input
-            type="text"
-            value={searchFilter}
-            onChange={(e) => setSearchFilter(e.target.value)}
-            placeholder="Search diagnosis or tablet..."
-            className="input pl-9 text-xs py-2 rounded-xl"
-          />
-        </div>
+        {patient.visits.length > 0 && (
+          <div className="relative w-full sm:w-72">
+            <Search size={16} className="absolute left-3 top-3 text-slate-400" />
+            <input
+              type="text"
+              value={searchFilter}
+              onChange={(e) => setSearchFilter(e.target.value)}
+              placeholder="Search diagnosis or tablet..."
+              className="input pl-9 text-xs py-2 rounded-xl"
+            />
+          </div>
+        )}
       </div>
 
       {/* Visits Chronological Stream */}
       <div className="space-y-6">
-        {filteredVisits.map((visit) => (
+        {isNewPatient ? (
+          <div className="card p-8 sm:p-12 text-center bg-white dark:bg-slate-900 border border-dashed border-slate-300 dark:border-slate-700 rounded-3xl space-y-6 shadow-sm">
+            <div className="w-16 h-16 rounded-3xl bg-teal-50 dark:bg-teal-950/80 text-teal-600 dark:text-teal-400 mx-auto flex items-center justify-center shadow-inner">
+              <FileText size={32} />
+            </div>
+            <div className="max-w-md mx-auto space-y-2">
+              <h3 className="text-xl font-black text-slate-900 dark:text-white">
+                No Medical History or Past Prescriptions
+              </h3>
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                You are logged in for the first time. As a new patient, no OPD consultations, recorded vitals, or digital prescriptions exist on your file yet.
+              </p>
+            </div>
+
+            {/* Next Steps Infographic */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 max-w-2xl mx-auto text-left pt-2">
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-1">
+                <span className="w-6 h-6 rounded-lg bg-teal-600 text-white font-bold text-xs flex items-center justify-center">1</span>
+                <h5 className="text-xs font-bold text-slate-800 dark:text-slate-200">Book / Walk In</h5>
+                <p className="text-[11px] text-slate-500">Pick an available specialist or scan the clinic QR code at the desk.</p>
+              </div>
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-1">
+                <span className="w-6 h-6 rounded-lg bg-teal-600 text-white font-bold text-xs flex items-center justify-center">2</span>
+                <h5 className="text-xs font-bold text-slate-800 dark:text-slate-200">Doctor Consultation</h5>
+                <p className="text-[11px] text-slate-500">Physician records your vitals, diagnosis, and prescribed tablets.</p>
+              </div>
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-1">
+                <span className="w-6 h-6 rounded-lg bg-teal-600 text-white font-bold text-xs flex items-center justify-center">3</span>
+                <h5 className="text-xs font-bold text-slate-800 dark:text-slate-200">Instant EHR Sync</h5>
+                <p className="text-[11px] text-slate-500">Your official prescription slip and dosage schedules appear here.</p>
+              </div>
+            </div>
+
+            <div className="pt-2 flex flex-wrap justify-center gap-3">
+              <Link
+                to="/portal/patient"
+                className="btn btn-primary px-5 py-2.5 text-xs font-bold inline-flex items-center gap-2"
+              >
+                <Stethoscope size={16} />
+                <span>Browse Available Specialists</span>
+              </Link>
+              <Link
+                to="/portal/patient/queue"
+                className="btn btn-secondary px-5 py-2.5 text-xs font-bold inline-flex items-center gap-2"
+              >
+                <Clock size={16} />
+                <span>Check Live Queue Status</span>
+              </Link>
+            </div>
+          </div>
+        ) : filteredVisits.length === 0 ? (
+          <div className="p-8 text-center rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 space-y-2">
+            <Search size={24} className="text-slate-400 mx-auto" />
+            <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300">No visits matched "{searchFilter}"</h4>
+            <p className="text-xs text-slate-400">Try searching with a different diagnosis or tablet name.</p>
+          </div>
+        ) : (
+          filteredVisits.map((visit) => (
           <motion.div
             key={visit.id}
             initial={{ opacity: 0, y: 15 }}
@@ -358,7 +488,7 @@ export default function PatientHistoryPage() {
               </div>
             )}
           </motion.div>
-        ))}
+        )))}
       </div>
 
       {/* PRINT OFFICIAL PRESCRIPTION SLIP MODAL */}
@@ -482,6 +612,89 @@ export default function PatientHistoryPage() {
                   Close
                 </button>
               </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* EDIT CLINICAL DEMOGRAPHICS & ALLERGIES MODAL */}
+      <AnimatePresence>
+        {showEditDemographics && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white rounded-3xl max-w-md w-full p-6 shadow-2xl relative space-y-5 border border-slate-200 dark:border-slate-800"
+            >
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-xl bg-teal-50 dark:bg-teal-950/70 text-teal-600 flex items-center justify-center">
+                    <ShieldCheck size={18} />
+                  </div>
+                  <h4 className="font-bold text-base">Update Patient Health Details</h4>
+                </div>
+                <button
+                  onClick={() => setShowEditDemographics(false)}
+                  className="p-1 rounded-full text-slate-400 hover:text-slate-600"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveDemographics} className="space-y-4 text-xs">
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                    Blood Group:
+                  </label>
+                  <select
+                    value={editBloodGroup}
+                    onChange={(e) => setEditBloodGroup(e.target.value)}
+                    className="input w-full py-2.5 px-3 rounded-xl font-semibold"
+                  >
+                    <option value="A+">A+ (Positive)</option>
+                    <option value="A-">A- (Negative)</option>
+                    <option value="B+">B+ (Positive)</option>
+                    <option value="B-">B- (Negative)</option>
+                    <option value="O+">O+ (Positive)</option>
+                    <option value="O-">O- (Negative)</option>
+                    <option value="AB+">AB+ (Positive)</option>
+                    <option value="AB-">AB- (Negative)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="font-bold text-slate-700 dark:text-slate-300 block mb-1">
+                    Known Drug & Clinical Allergies (comma separated):
+                  </label>
+                  <textarea
+                    rows={3}
+                    value={editAllergies}
+                    onChange={(e) => setEditAllergies(e.target.value)}
+                    placeholder="e.g. Penicillin, Sulfa drugs, Peanuts, None..."
+                    className="input w-full py-2 px-3 rounded-xl font-medium"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-1 block">
+                    Alerts will be flagged to the consulting doctor during your visit.
+                  </span>
+                </div>
+
+                <div className="pt-2 flex gap-3">
+                  <button
+                    type="submit"
+                    className="btn btn-primary flex-1 py-2.5 text-xs font-bold shadow-md"
+                  >
+                    Save & Update EHR
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowEditDemographics(false)}
+                    className="btn btn-secondary py-2.5 px-4 text-xs"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </form>
             </motion.div>
           </div>
         )}

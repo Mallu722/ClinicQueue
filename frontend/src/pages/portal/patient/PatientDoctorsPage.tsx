@@ -19,8 +19,10 @@ import {
 
 export default function PatientDoctorsPage() {
   const { user } = useAuth()
-  const { doctors, queue, checkInPatient, bookNewAppointment } = useClinic()
+  const { doctors, queue, checkInPatient, bookNewAppointment, getPatientProfileForUser } = useClinic()
   const { addToast } = useToast()
+
+  const patientProfile = getPatientProfileForUser(user)
 
   // Specialty Filter
   const [selectedSpecialty, setSelectedSpecialty] = useState<string>('all')
@@ -71,15 +73,21 @@ export default function PatientDoctorsPage() {
   }
 
   const handleConfirmToken = (doc: Doctor) => {
+    const patientName = user?.name || patientProfile.name || 'Patient'
+    const patientPhone = user?.phone || patientProfile.phone || '9845012345'
+    const patientAge = patientProfile.age || user?.age || 30
+    const patientGender = patientProfile.gender || user?.gender || 'Male'
+    const isRevisit = patientProfile.totalVisits > 0
+
     if (bookingMode === 'walkin') {
       const entry = checkInPatient({
-        patientName: user?.name || 'Suresh Kumar',
-        patientPhone: user?.phone || '9845044444',
-        patientAge: 52,
-        patientGender: 'Male',
+        patientName,
+        patientPhone,
+        patientAge,
+        patientGender,
         doctorId: doc.id,
         reason: reason || 'General consultation & review',
-        isRevisit: true,
+        isRevisit,
       })
       setSelectedDoctor(null)
       setShowScannerModal(false)
@@ -90,10 +98,10 @@ export default function PatientDoctorsPage() {
       })
     } else {
       bookNewAppointment({
-        patientName: user?.name || 'Suresh Kumar',
-        patientPhone: user?.phone || '9845044444',
-        patientAge: 52,
-        patientGender: 'Male',
+        patientName,
+        patientPhone,
+        patientAge,
+        patientGender,
         doctorId: doc.id,
         doctorName: doc.name,
         date: new Date().toISOString().split('T')[0],
@@ -162,6 +170,7 @@ export default function PatientDoctorsPage() {
           const isAvailable = doc.status === 'AVAILABLE'
           const isInConsultation = doc.status === 'IN_CONSULTATION'
           const isOnBreak = doc.status === 'BREAK'
+          const isOnLeave = doc.status === 'ON_LEAVE'
 
           // Doctor queue stats
           const docQueue = sortQueueInOrder(queue.filter(q => q.doctorId === doc.id && (q.status === 'WAITING' || q.status === 'IN_CONSULTATION')))
@@ -211,11 +220,15 @@ export default function PatientDoctorsPage() {
                         ? 'badge-emerald'
                         : isInConsultation
                         ? 'badge-amber'
-                        : 'badge-rose'
+                        : isOnBreak
+                        ? 'badge-rose'
+                        : isOnLeave
+                        ? 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border border-purple-300 dark:border-purple-800'
+                        : 'badge-slate'
                     } text-[11px] font-extrabold px-3 py-1 flex items-center gap-1.5 shadow-sm`}
                   >
                     <span className={`w-2 h-2 rounded-full ${
-                      isAvailable ? 'bg-emerald-500 animate-pulse' : isInConsultation ? 'bg-amber-500' : 'bg-rose-500'
+                      isAvailable ? 'bg-emerald-500 animate-pulse' : isInConsultation ? 'bg-amber-500' : isOnLeave ? 'bg-purple-500' : 'bg-rose-500'
                     }`} />
                     {isAvailable
                       ? 'Available Now'
@@ -223,6 +236,8 @@ export default function PatientDoctorsPage() {
                       ? 'In Consultation'
                       : isOnBreak
                       ? 'On Break'
+                      : isOnLeave
+                      ? 'On Leave Today'
                       : 'Off Duty'}
                   </span>
                 </div>
@@ -264,6 +279,14 @@ export default function PatientDoctorsPage() {
                     <span className="text-slate-700 dark:text-slate-300 font-semibold">{doc.shifts}</span>
                   </div>
 
+                  {/* Doctor Status Notice / Broadcast if set by Receptionist */}
+                  {doc.statusNote && (
+                    <div className="p-2.5 rounded-xl bg-amber-50/90 dark:bg-amber-950/40 border border-amber-300/80 dark:border-amber-800/80 text-amber-900 dark:text-amber-200 text-xs font-semibold flex items-center gap-2">
+                      <span className="text-amber-600 dark:text-amber-400 font-bold">📢 Notice:</span>
+                      <span>{doc.statusNote}</span>
+                    </div>
+                  )}
+
                   {/* Live Doctor Queue Ticker */}
                   <div className="p-2.5 rounded-xl bg-teal-50/70 dark:bg-teal-950/40 border border-teal-200/70 dark:border-teal-800/60 flex items-center justify-between">
                     <div className="flex items-center gap-2">
@@ -289,14 +312,15 @@ export default function PatientDoctorsPage() {
                   disabled={!isAvailable && !isInConsultation}
                   className="btn btn-primary flex-1 py-2.5 text-xs font-black shadow-sm disabled:opacity-40"
                 >
-                  ⚡ Take Queue Token
+                  {isOnLeave ? '🏖️ On Leave Today' : '⚡ Take Queue Token'}
                 </button>
                 <button
                   onClick={() => {
                     setSelectedDoctor(doc)
                     setBookingMode('scheduled')
                   }}
-                  className="btn btn-secondary py-2.5 px-3.5 text-xs font-bold text-slate-700 dark:text-slate-200"
+                  disabled={isOnLeave}
+                  className="btn btn-secondary py-2.5 px-3.5 text-xs font-bold text-slate-700 dark:text-slate-200 disabled:opacity-40"
                 >
                   📅 Book Slot
                 </button>

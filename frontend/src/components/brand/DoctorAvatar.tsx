@@ -8,7 +8,7 @@ interface DoctorAvatarProps {
   size?: 'sm' | 'md' | 'lg' | 'xl'
   className?: string
   showBadge?: boolean
-  status?: 'AVAILABLE' | 'IN_CONSULTATION' | 'BREAK' | 'OFF_DUTY'
+  status?: 'AVAILABLE' | 'IN_CONSULTATION' | 'BREAK' | 'OFF_DUTY' | 'ON_LEAVE'
 }
 
 export default function DoctorAvatar({
@@ -76,7 +76,9 @@ export default function DoctorAvatar({
     : status === 'IN_CONSULTATION'
     ? 'bg-amber-500 ring-white dark:ring-slate-900'
     : status === 'BREAK'
-    ? 'bg-rose-500 ring-white dark:ring-slate-900'
+    ? 'bg-orange-500 ring-white dark:ring-slate-900'
+    : status === 'ON_LEAVE'
+    ? 'bg-purple-500 ring-white dark:ring-slate-900'
     : 'bg-slate-400 ring-white dark:ring-slate-900'
 
   return (

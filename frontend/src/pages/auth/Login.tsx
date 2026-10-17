@@ -16,7 +16,8 @@ import {
   Lock,
   UserPlus,
   LogIn,
-  ShieldCheck
+  ShieldCheck,
+  AlertTriangle
 } from 'lucide-react'
 
 export default function Login() {
@@ -105,8 +106,14 @@ export default function Login() {
       } else {
         navigate('/portal/receptionist')
       }
-    } catch {
-      setError('Invalid credentials. Please verify your details and try again.')
+    } catch (err: any) {
+      if (err?.message === 'ACCOUNT_NOT_FOUND') {
+        setError('NO_ACCOUNT_FOUND')
+      } else if (err?.message === 'INCORRECT_PASSWORD') {
+        setError('Incorrect password or PIN. Please check and try again.')
+      } else {
+        setError('Invalid credentials. Please verify your details and try again.')
+      }
     } finally {
       setLoading(false)
     }
@@ -257,11 +264,38 @@ export default function Login() {
             </div>
           )}
 
-          {error && (
+          {error === 'NO_ACCOUNT_FOUND' ? (
+            <div className="mb-6 p-4 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 text-amber-900 dark:text-amber-200 space-y-3">
+              <div className="flex items-start gap-2.5">
+                <AlertTriangle size={18} className="text-amber-600 shrink-0 mt-0.5" />
+                <div className="text-xs">
+                  <p className="font-bold">No Registered Account Found for "{signInData.identifier}"</p>
+                  <p className="text-slate-600 dark:text-slate-400 mt-0.5 leading-relaxed">
+                    You cannot sign in without registering first. Please click below to create your patient profile.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSignUpData(prev => ({
+                    ...prev,
+                    phone: signInData.identifier.replace(/\D/g, '').length >= 10 ? signInData.identifier : prev.phone
+                  }))
+                  setAuthMode('signup')
+                  setError('')
+                }}
+                className="btn btn-primary w-full py-2.5 text-xs font-bold shadow-md flex items-center justify-center gap-1.5"
+              >
+                <UserPlus size={15} />
+                <span>Click Here to Sign Up as New Patient</span>
+              </button>
+            </div>
+          ) : error ? (
             <div className="mb-6 p-4 rounded-xl bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-900/60 text-rose-700 dark:text-rose-300 text-xs font-semibold">
               {error}
             </div>
-          )}
+          ) : null}
 
           {/* MODE 1: SIGN IN FORM */}
           {authMode === 'signin' ? (

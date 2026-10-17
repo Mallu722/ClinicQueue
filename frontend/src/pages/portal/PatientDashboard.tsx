@@ -23,7 +23,7 @@ export default function PatientDashboard() {
     queue, 
     checkInPatient, 
     bookNewAppointment, 
-    patients, 
+    getPatientProfileForUser,
     currentServingToken, 
     nextAlertToken 
   } = useClinic()
@@ -39,17 +39,20 @@ export default function PatientDashboard() {
   const [bookingMode, setBookingMode] = useState<'walkin' | 'scheduled'>('walkin')
   const [bookingSlot, setBookingSlot] = useState('11:30 AM')
   const [reason, setReason] = useState('')
-  const [userToken, setUserToken] = useState<number | null>(() => {
-    // Check if user has an active token in the queue
-    const found = queue.find(q => q.patientPhone === user?.phone || q.patientName.toLowerCase().includes('suresh'))
-    return found ? found.tokenNumber : 103
+
+  // Patient profile & medical history (pristine for first-time users!)
+  const patientProfile = getPatientProfileForUser(user)
+
+  // Find user's active token strictly
+  const cleanPhone = user?.phone ? user.phone.replace(/\D/g, '') : ''
+  const myQueueItem = queue.find(q => {
+    const qPhone = q.patientPhone ? q.patientPhone.replace(/\D/g, '') : ''
+    if (cleanPhone && qPhone && cleanPhone === qPhone) return true
+    if (user?.name && user.name.toLowerCase() !== 'verified patient' && q.patientName.toLowerCase() === user.name.toLowerCase()) return true
+    return false
   })
+  const [userToken, setUserToken] = useState<number | null>(() => myQueueItem ? myQueueItem.tokenNumber : null)
 
-  // Patient profile & medical history
-  const patientProfile = patients.find(p => p.phone === user?.phone || p.name.toLowerCase().includes('suresh')) || patients[0]
-
-  // Find user's active queue item
-  const myQueueItem = queue.find(q => q.tokenNumber === userToken)
   const isMyTurnNext = userToken !== null && nextAlertToken === userToken
   const isMyTurnNow = userToken !== null && currentServingToken === userToken
 
@@ -77,15 +80,21 @@ export default function PatientDashboard() {
   }
 
   const handleConfirmToken = (doc: Doctor) => {
+    const patientName = user?.name || patientProfile.name || 'Patient'
+    const patientPhone = user?.phone || patientProfile.phone || '9845012345'
+    const patientAge = patientProfile.age || user?.age || 30
+    const patientGender = patientProfile.gender || user?.gender || 'Male'
+    const isRevisit = patientProfile.totalVisits > 0
+
     if (bookingMode === 'walkin') {
       const entry = checkInPatient({
-        patientName: user?.name || 'Suresh Kumar',
-        patientPhone: user?.phone || '9845044444',
-        patientAge: 52,
-        patientGender: 'Male',
+        patientName,
+        patientPhone,
+        patientAge,
+        patientGender,
         doctorId: doc.id,
         reason: reason || 'General consultation & review',
-        isRevisit: true,
+        isRevisit,
       })
       setUserToken(entry.tokenNumber)
       setSelectedDoctor(null)
@@ -97,10 +106,10 @@ export default function PatientDashboard() {
       })
     } else {
       bookNewAppointment({
-        patientName: user?.name || 'Suresh Kumar',
-        patientPhone: user?.phone || '9845044444',
-        patientAge: 52,
-        patientGender: 'Male',
+        patientName,
+        patientPhone,
+        patientAge,
+        patientGender,
         doctorId: doc.id,
         doctorName: doc.name,
         date: new Date().toISOString().split('T')[0],
@@ -131,7 +140,7 @@ export default function PatientDashboard() {
               <span>MRN: {patientProfile.mrn}</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight">
-              Welcome back, {user?.name || 'Suresh Kumar'}
+              Welcome, {user?.name || patientProfile.name}
             </h1>
             <p className="text-teal-100 text-sm max-w-xl">
               Scan the clinic QR code to grab a token on arrival, view live doctor availability, and track your queue position in real-time.
@@ -422,11 +431,26 @@ export default function PatientDashboard() {
                   Total Visits Recorded: <strong className="text-teal-600">{patientProfile.totalVisits} Times</strong> • Last Visited: {patientProfile.lastVisitDate}
                 </p>
               </div>
-              <span className="badge badge-teal">Repeat Patient</span>
+              <span className={`badge ${patientProfile.visits.length > 0 ? 'badge-teal' : 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-300 text-xs'}`}>
+                {patientProfile.visits.length > 0 ? 'Repeat Patient' : 'New Patient'}
+              </span>
             </div>
 
             <div className="space-y-4">
-              {patientProfile.visits.map(v => (
+              {patientProfile.visits.length === 0 ? (
+                <div className="p-8 text-center rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-dashed border-slate-300 dark:border-slate-700 space-y-3">
+                  <div className="w-12 h-12 rounded-2xl bg-teal-50 dark:bg-teal-950/70 text-teal-600 dark:text-teal-400 mx-auto flex items-center justify-center">
+                    <FileText size={22} />
+                  </div>
+                  <h4 className="text-sm font-bold text-slate-800 dark:text-slate-200">
+                    No Consultation History Yet
+                  </h4>
+                  <p className="text-xs text-slate-500 max-w-sm mx-auto">
+                    You are logged in for the first time. Your diagnoses, recorded vitals, and prescribed medications will appear here following your first doctor visit.
+                  </p>
+                </div>
+              ) : (
+                patientProfile.visits.map(v => (
                 <div
                   key={v.id}
                   className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 space-y-3"
@@ -484,7 +508,7 @@ export default function PatientDashboard() {
                     </p>
                   )}
                 </div>
-              ))}
+              )))}
             </div>
           </div>
         </div>

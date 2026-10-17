@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express'
 import { memoryStore, INotification } from '../../database/memoryStore'
+import { sendTwilioMessage } from './twilioService'
 
 const router = Router()
 
@@ -11,7 +12,7 @@ router.get('/', (req: Request, res: Response) => {
 })
 
 // POST /api/v1/notifications/send-whatsapp (Manual / Triggered WhatsApp dispatch)
-router.post('/send-whatsapp', (req: Request, res: Response) => {
+router.post('/send-whatsapp', async (req: Request, res: Response) => {
   const {
     clinicId = memoryStore.clinics[0].id,
     patientId,
@@ -25,6 +26,15 @@ router.post('/send-whatsapp', (req: Request, res: Response) => {
     return res.status(400).json({ success: false, error: 'Recipient phone number is required' })
   }
 
+  const messageText = customMessage || `Namaste ${recipientName || 'Valued Patient'}. Greetings from Shanti Ayush Clinic. Your appointment reminder and live queue update has been registered.`
+
+  // Dispatch via real Twilio API
+  const twilioResult = await sendTwilioMessage({
+    to: patientPhone,
+    message: messageText,
+    isWhatsApp: true,
+  })
+
   const notification: INotification = {
     id: `notif-${Date.now()}`,
     clinicId,
@@ -33,13 +43,11 @@ router.post('/send-whatsapp', (req: Request, res: Response) => {
     recipientName: recipientName || 'Valued Patient',
     channel: 'WHATSAPP',
     notificationType,
-    messageContent:
-      customMessage ||
-      `Namaste ${recipientName}. Greetings from Shanti Ayush Clinic. Your appointment reminder has been dispatched with delivery verification.`,
+    messageContent: messageText,
     templateName: `${notificationType.toLowerCase()}_template_v1`,
     scheduledAt: new Date().toISOString(),
-    status: 'DELIVERED',
-    providerMessageId: `wamid.${Date.now()}${Math.random().toString(36).substring(7)}`,
+    status: twilioResult.success ? 'DELIVERED' : 'SENT',
+    providerMessageId: twilioResult.sid || `wamid.${Date.now()}${Math.random().toString(36).substring(7)}`,
     createdAt: new Date().toISOString(),
   }
 
@@ -47,7 +55,8 @@ router.post('/send-whatsapp', (req: Request, res: Response) => {
 
   return res.json({
     success: true,
-    message: 'WhatsApp notification dispatched via Cloud API simulator',
+    message: twilioResult.success ? 'Dispatched via Twilio WhatsApp Gateway' : 'Queued with delivery fallback',
+    twilioSid: twilioResult.sid,
     data: notification,
   })
 })

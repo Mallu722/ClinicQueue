@@ -14,5 +14,11 @@ export const config = {
     apiUrl: process.env.WHATSAPP_API_URL || 'https://graph.facebook.com/v18.0',
     phoneNumberId: process.env.WHATSAPP_PHONE_NUMBER_ID || 'mock-phone-id',
     accessToken: process.env.WHATSAPP_ACCESS_TOKEN || 'mock-token',
+  },
+  twilio: {
+    accountSid: process.env.TWILIO_ACCOUNT_SID || '',
+    authToken: process.env.TWILIO_AUTH_TOKEN || '',
+    whatsappFrom: process.env.TWILIO_WHATSAPP_FROM || 'whatsapp:+14155238886',
+    phoneNumber: process.env.TWILIO_PHONE_NUMBER || '+14155238886',
   }
 }

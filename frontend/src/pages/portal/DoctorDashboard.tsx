@@ -179,7 +179,15 @@ export default function DoctorDashboard() {
   // Save consultation updates & automated WhatsApp dispatch
   const handleSaveConsultation = (e: React.FormEvent) => {
     e.preventDefault()
-    const targetPatient = selectedPatient || patients[0]
+    const activePatientFromQueue = currentInRoom
+      ? patients.find(p => {
+          const cleanP = p.phone ? p.phone.replace(/\D/g, '') : ''
+          const cleanQ = currentInRoom.patientPhone ? currentInRoom.patientPhone.replace(/\D/g, '') : ''
+          return (cleanQ && cleanP && cleanQ === cleanP) || (currentInRoom.patientName && p.name.toLowerCase() === currentInRoom.patientName.toLowerCase())
+        })
+      : null
+
+    const targetPatient = activePatientFromQueue || selectedPatient || patients[0]
     if (!targetPatient) return
 
     const patientName = currentInRoom?.patientName || targetPatient.name

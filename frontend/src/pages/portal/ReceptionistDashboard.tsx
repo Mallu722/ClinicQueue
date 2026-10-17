@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useClinic, DoctorStatus, sortQueueInOrder } from '../../context/ClinicContext'
+import { useClinic, Doctor, DoctorStatus, sortQueueInOrder } from '../../context/ClinicContext'
 import { useToast } from '../../context/ToastContext'
 import DoctorAvatar from '../../components/brand/DoctorAvatar'
 import { 
@@ -15,7 +15,9 @@ import {
   UserCheck, 
   UserPlus, 
   ArrowRight,
-  Check
+  Check,
+  Edit3,
+  X
 } from 'lucide-react'
 
 export default function ReceptionistDashboard() {
@@ -26,6 +28,7 @@ export default function ReceptionistDashboard() {
     patients, 
     callNextToken, 
     updateDoctorStatus, 
+    updateDoctorDetails,
     acceptAppointment, 
     rejectAppointment,
     checkInRevisitedPatient,
@@ -38,6 +41,14 @@ export default function ReceptionistDashboard() {
   const [activeTab, setActiveTab] = useState<'queue' | 'appointments' | 'doctors' | 'revisit'>('queue')
   const [selectedDoctorFilter, setSelectedDoctorFilter] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState('')
+
+  // Doctor Availability Editor Modal state for Receptionist
+  const [editingDoctor, setEditingDoctor] = useState<Doctor | null>(null)
+  const [editStatus, setEditStatus] = useState<DoctorStatus>('AVAILABLE')
+  const [editRoom, setEditRoom] = useState('')
+  const [editShifts, setEditShifts] = useState('')
+  const [editStatusNote, setEditStatusNote] = useState('')
+  const [editFee, setEditFee] = useState<number>(350)
 
   // Revisited Patient Search state
   const [revisitSearch, setRevisitSearch] = useState('')
@@ -535,25 +546,58 @@ export default function ReceptionistDashboard() {
       {/* TAB 3: DOCTOR AVAILABILITY MANAGER */}
       {activeTab === 'doctors' && (
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                Live Doctor Availability Controls
+                Live Doctor Availability & OPD Controls
               </h3>
               <p className="text-xs text-slate-500">
-                Update doctor statuses in real-time. Changes instantly sync with the Public Website, Patient Dashboard, and TV Display.
+                Receptionists can edit doctor availability statuses, assign consultation rooms, update OPD shifts, and broadcast live notice announcements.
               </p>
             </div>
-            <span className="badge badge-teal">Live OPD Sync</span>
+            <span className="badge badge-teal self-start sm:self-auto">Live OPD Sync</span>
           </div>
 
+          {/* Quick Roster Metrics Banner */}
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-xs">
+            <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-center shadow-sm">
+              <span className="text-[10px] text-slate-400 font-bold uppercase block">Specialists</span>
+              <span className="text-lg font-black text-slate-900 dark:text-white">{doctors.length} Doctors</span>
+            </div>
+            <div className="p-3.5 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200/80 dark:border-emerald-800 text-center">
+              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold uppercase block">Ready / Available</span>
+              <span className="text-lg font-black text-emerald-800 dark:text-emerald-200">
+                {doctors.filter(d => d.status === 'AVAILABLE').length} Available
+              </span>
+            </div>
+            <div className="p-3.5 rounded-2xl bg-amber-50 dark:bg-amber-950/60 border border-amber-200/80 dark:border-amber-800 text-center">
+              <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold uppercase block">In Cabin</span>
+              <span className="text-lg font-black text-amber-800 dark:text-amber-200">
+                {doctors.filter(d => d.status === 'IN_CONSULTATION').length} In Cabin
+              </span>
+            </div>
+            <div className="p-3.5 rounded-2xl bg-orange-50 dark:bg-orange-950/60 border border-orange-200/80 dark:border-orange-800 text-center">
+              <span className="text-[10px] text-orange-600 dark:text-orange-400 font-bold uppercase block">On Break</span>
+              <span className="text-lg font-black text-orange-800 dark:text-orange-200">
+                {doctors.filter(d => d.status === 'BREAK').length} On Break
+              </span>
+            </div>
+            <div className="p-3.5 rounded-2xl bg-purple-50 dark:bg-purple-950/60 border border-purple-200/80 dark:border-purple-800 text-center col-span-2 sm:col-span-1">
+              <span className="text-[10px] text-purple-600 dark:text-purple-400 font-bold uppercase block">Leave / Off</span>
+              <span className="text-lg font-black text-purple-800 dark:text-purple-200">
+                {doctors.filter(d => d.status === 'ON_LEAVE' || d.status === 'OFF_DUTY').length} Inactive
+              </span>
+            </div>
+          </div>
+
+          {/* Doctor Cards Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {doctors.map(doc => (
               <div
                 key={doc.id}
-                className="card p-6 border border-slate-200 dark:border-slate-800 space-y-5"
+                className="card p-6 border border-slate-200 dark:border-slate-800 space-y-4 hover:shadow-lg transition-all"
               >
-                <div className="flex items-start justify-between">
+                <div className="flex items-start justify-between gap-3">
                   <div className="flex items-center gap-3">
                     <DoctorAvatar
                       id={doc.id}
@@ -566,25 +610,47 @@ export default function ReceptionistDashboard() {
                     <div>
                       <h4 className="text-base font-bold text-slate-900 dark:text-white">{doc.name}</h4>
                       <p className="text-xs text-teal-600 dark:text-teal-400 font-semibold">{doc.specialty}</p>
-                      <p className="text-[11px] text-slate-400">{doc.room} • OPD: {doc.shifts}</p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium">{doc.degrees}</p>
                     </div>
                   </div>
                   <span className={`badge ${
                     doc.status === 'AVAILABLE' ? 'badge-emerald' :
                     doc.status === 'IN_CONSULTATION' ? 'badge-amber' :
-                    'badge-rose'
-                  }`}>
-                    {doc.status.replace('_', ' ')}
+                    doc.status === 'BREAK' ? 'badge-rose' :
+                    doc.status === 'ON_LEAVE' ? 'bg-purple-100 text-purple-800 dark:bg-purple-950 dark:text-purple-300 border border-purple-300' :
+                    'badge-slate'
+                  } text-[11px] font-bold`}>
+                    {doc.status === 'ON_LEAVE' ? 'On Leave' : doc.status.replace('_', ' ')}
                   </span>
                 </div>
 
-                {/* Status Toggle Switcher Buttons */}
-                <div className="space-y-2">
-                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300 block">
-                    Change Availability Status:
-                  </span>
-                  <div className="grid grid-cols-4 gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
-                    {(['AVAILABLE', 'IN_CONSULTATION', 'BREAK', 'OFF_DUTY'] as DoctorStatus[]).map(status => (
+                {/* Status Notice if set */}
+                {doc.statusNote && (
+                  <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-300/80 dark:border-amber-800 text-amber-900 dark:text-amber-200 text-xs font-semibold flex items-center justify-between gap-2">
+                    <span className="flex items-center gap-1.5">
+                      <span className="text-amber-600">📢</span>
+                      <span>{doc.statusNote}</span>
+                    </span>
+                    <button
+                      onClick={() => updateDoctorDetails(doc.id, { statusNote: '' })}
+                      className="text-amber-600 hover:text-amber-800 text-[10px] font-bold underline"
+                      title="Clear notice"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                )}
+
+                {/* Quick 1-Click Status Bar (5 Statuses) */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                      Quick Availability Toggle:
+                    </span>
+                    <span className="text-[10px] text-slate-400">1-click broadcast</span>
+                  </div>
+                  <div className="grid grid-cols-5 gap-1 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+                    {(['AVAILABLE', 'IN_CONSULTATION', 'BREAK', 'ON_LEAVE', 'OFF_DUTY'] as DoctorStatus[]).map(status => (
                       <button
                         key={status}
                         type="button"
@@ -596,7 +662,7 @@ export default function ReceptionistDashboard() {
                             type: 'info',
                           })
                         }}
-                        className={`py-2 text-[11px] font-bold rounded-lg transition-all ${
+                        className={`py-2 text-[10px] sm:text-[11px] font-bold rounded-lg transition-all ${
                           doc.status === status
                             ? status === 'AVAILABLE'
                               ? 'bg-emerald-600 text-white shadow-sm'
@@ -604,22 +670,58 @@ export default function ReceptionistDashboard() {
                               ? 'bg-amber-600 text-white shadow-sm'
                               : status === 'BREAK'
                               ? 'bg-orange-600 text-white shadow-sm'
+                              : status === 'ON_LEAVE'
+                              ? 'bg-purple-600 text-white shadow-sm'
                               : 'bg-slate-700 text-white shadow-sm'
-                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
                         }`}
                       >
                         {status === 'AVAILABLE' ? '🟢 Ready' :
-                         status === 'IN_CONSULTATION' ? '🟡 In Cabin' :
-                         status === 'BREAK' ? '☕ Break' : '⚪ Off'}
+                         status === 'IN_CONSULTATION' ? '🟡 Cabin' :
+                         status === 'BREAK' ? '☕ Break' :
+                         status === 'ON_LEAVE' ? '🏖️ Leave' : '⚪ Off'}
                       </button>
                     ))}
                   </div>
                 </div>
 
-                {/* Room and Token Details */}
-                <div className="flex items-center justify-between text-xs pt-3 border-t border-slate-100 dark:border-slate-800 text-slate-500">
+                {/* Shift Timings & Room Info Strip */}
+                <div className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200/80 dark:border-slate-700/60 text-xs space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400 font-medium">Assigned Cabin:</span>
+                    <strong className="text-slate-800 dark:text-slate-200 font-bold">{doc.room}</strong>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400 font-medium">OPD Shift Hours:</span>
+                    <strong className="text-slate-800 dark:text-slate-200 font-semibold">{doc.shifts}</strong>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-slate-400 font-medium">Consultation Fee:</span>
+                    <strong className="text-teal-600 font-bold">₹{doc.fee}</strong>
+                  </div>
+                </div>
+
+                {/* Full Availability & Schedule Edit Trigger */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setEditingDoctor(doc)
+                    setEditStatus(doc.status)
+                    setEditRoom(doc.room)
+                    setEditShifts(doc.shifts)
+                    setEditStatusNote(doc.statusNote || '')
+                    setEditFee(doc.fee)
+                  }}
+                  className="w-full btn btn-secondary py-2.5 text-xs font-bold flex items-center justify-center gap-2 border-teal-200 dark:border-teal-800 text-teal-700 dark:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-950/40 shadow-sm"
+                >
+                  <Edit3 size={15} />
+                  <span>Edit Availability, Cabin & Shifts</span>
+                </button>
+
+                {/* Footer with Serving Token */}
+                <div className="flex items-center justify-between text-xs pt-2 border-t border-slate-100 dark:border-slate-800 text-slate-500">
                   <span>Currently Serving: <strong className="text-teal-600 font-bold">#{doc.currentToken}</strong></span>
-                  <span>Room: <strong className="text-slate-800 dark:text-slate-200">{doc.room}</strong></span>
+                  <span className="text-[11px] text-slate-400 font-mono">ID: {doc.id}</span>
                 </div>
               </div>
             ))}
@@ -909,6 +1011,235 @@ export default function ReceptionistDashboard() {
                 >
                   Generate Token & Assign to Queue
                 </button>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* EDIT DOCTOR AVAILABILITY & OPD SCHEDULE MODAL FOR RECEPTIONIST */}
+      <AnimatePresence>
+        {editingDoctor && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl border border-slate-200 dark:border-slate-800 relative space-y-5 max-h-[92vh] overflow-y-auto"
+            >
+              {/* Header */}
+              <div className="flex items-start justify-between pb-4 border-b border-slate-100 dark:border-slate-800">
+                <div className="flex items-center gap-3">
+                  <DoctorAvatar
+                    id={editingDoctor.id}
+                    name={editingDoctor.name}
+                    specialty={editingDoctor.specialty}
+                    avatarUrl={editingDoctor.avatarUrl}
+                    size="md"
+                    status={editStatus}
+                  />
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                      Edit Doctor Availability & OPD Schedule
+                    </h3>
+                    <p className="text-xs text-teal-600 dark:text-teal-400 font-semibold">
+                      {editingDoctor.name} • {editingDoctor.specialty}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setEditingDoctor(null)}
+                  className="p-1 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                >
+                  <X size={20} />
+                </button>
+              </div>
+
+              {/* Form */}
+              <form
+                onSubmit={(e) => {
+                  e.preventDefault()
+                  updateDoctorDetails(editingDoctor.id, {
+                    status: editStatus,
+                    room: editRoom,
+                    shifts: editShifts,
+                    statusNote: editStatusNote,
+                    fee: editFee,
+                  })
+                  addToast({
+                    title: `${editingDoctor.name} Roster Updated!`,
+                    message: `Status set to ${editStatus.replace('_', ' ')} in ${editRoom}. Synced with Patient Portal & OPD Displays.`,
+                    type: 'success',
+                  })
+                  setEditingDoctor(null)
+                }}
+                className="space-y-5 text-xs"
+              >
+                {/* 1. Doctor Status Selection */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
+                    Current Availability Status:
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {[
+                      { val: 'AVAILABLE', label: '🟢 Ready / Available', desc: 'OPD open, accepting patients' },
+                      { val: 'IN_CONSULTATION', label: '🟡 In Consultation', desc: 'Attending patient in cabin' },
+                      { val: 'BREAK', label: '☕ On Break', desc: 'Temporary break / tea / lunch' },
+                      { val: 'ON_LEAVE', label: '🏖️ On Leave Today', desc: 'Absent for the day' },
+                      { val: 'OFF_DUTY', label: '⚪ Off Duty', desc: 'Shift concluded' },
+                    ].map(item => (
+                      <button
+                        key={item.val}
+                        type="button"
+                        onClick={() => setEditStatus(item.val as DoctorStatus)}
+                        className={`p-2.5 rounded-2xl border text-left transition-all ${
+                          editStatus === item.val
+                            ? 'bg-teal-50 dark:bg-teal-950/70 border-teal-500 text-teal-900 dark:text-teal-200 shadow-sm ring-1 ring-teal-500'
+                            : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 text-slate-700 dark:text-slate-300'
+                        }`}
+                      >
+                        <span className="font-bold block text-xs">{item.label}</span>
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400 block mt-0.5">{item.desc}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 2. Consultation Cabin Room */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Assigned Consultation Room / Cabin:
+                  </label>
+                  <input
+                    type="text"
+                    value={editRoom}
+                    onChange={(e) => setEditRoom(e.target.value)}
+                    placeholder="e.g. Consultation Room 1, OPD Cabin 4..."
+                    className="input w-full py-2.5 px-3 rounded-xl font-semibold mb-2"
+                    required
+                  />
+                  <div className="flex flex-wrap gap-1.5">
+                    {['Consultation Room 1', 'Consultation Room 2', 'Consultation Room 3', 'Consultation Room 4', 'OPD Cabin A', 'Emergency Room'].map(r => (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => setEditRoom(r)}
+                        className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors ${
+                          editRoom === r 
+                            ? 'bg-teal-600 text-white' 
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                        }`}
+                      >
+                        {r}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 3. OPD Shift Timings */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    OPD Shift Hours / Working Hours:
+                  </label>
+                  <input
+                    type="text"
+                    value={editShifts}
+                    onChange={(e) => setEditShifts(e.target.value)}
+                    placeholder="e.g. 09:00 AM - 01:30 PM | 05:00 PM - 09:00 PM"
+                    className="input w-full py-2.5 px-3 rounded-xl font-semibold mb-2"
+                    required
+                  />
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      '09:00 AM - 01:30 PM',
+                      '05:00 PM - 09:00 PM',
+                      '09:00 AM - 01:30 PM | 05:00 PM - 09:00 PM',
+                      '10:00 AM - 02:00 PM',
+                      '02:00 PM - 06:00 PM',
+                    ].map(s => (
+                      <button
+                        key={s}
+                        type="button"
+                        onClick={() => setEditShifts(s)}
+                        className={`px-2.5 py-1 rounded-lg text-[10px] font-semibold transition-colors ${
+                          editShifts === s
+                            ? 'bg-teal-600 text-white' 
+                            : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-200'
+                        }`}
+                      >
+                        {s}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 4. Real-time Status Notice / Announcement */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Patient OPD Announcement / Away Note (Optional):
+                  </label>
+                  <input
+                    type="text"
+                    value={editStatusNote}
+                    onChange={(e) => setEditStatusNote(e.target.value)}
+                    placeholder="e.g. Lunch break until 2:30 PM, In emergency surgery, Doctor running 15 mins late..."
+                    className="input w-full py-2.5 px-3 rounded-xl font-medium mb-1.5"
+                  />
+                  <div className="flex flex-wrap gap-1.5">
+                    {[
+                      'Lunch break until 2:30 PM',
+                      'Emergency ward rounds — Resuming at 11:30 AM',
+                      'Running ~15 mins behind schedule',
+                      'Accepting walk-in tokens only',
+                    ].map(n => (
+                      <button
+                        key={n}
+                        type="button"
+                        onClick={() => setEditStatusNote(n)}
+                        className="px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200 text-[10px] font-medium hover:bg-amber-100"
+                      >
+                        + {n}
+                      </button>
+                    ))}
+                  </div>
+                  <span className="text-[10px] text-slate-400 mt-1 block">
+                    Broadcast instantly to the Patient Portal, Available Doctors directory, and OPD TV Display.
+                  </span>
+                </div>
+
+                {/* 5. Consultation Fee */}
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    OPD Consultation Fee (₹):
+                  </label>
+                  <input
+                    type="number"
+                    value={editFee}
+                    onChange={(e) => setEditFee(Number(e.target.value))}
+                    className="input w-full py-2.5 px-3 rounded-xl font-bold text-teal-600"
+                    min={0}
+                    step={50}
+                  />
+                </div>
+
+                {/* Action Buttons */}
+                <div className="pt-3 flex gap-3 border-t border-slate-100 dark:border-slate-800">
+                  <button
+                    type="submit"
+                    className="btn btn-primary flex-1 py-3 text-xs font-bold shadow-lg flex items-center justify-center gap-2"
+                  >
+                    <CheckCircle2 size={16} />
+                    <span>Save Availability & Broadcast to OPD</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditingDoctor(null)}
+                    className="btn btn-secondary py-3 px-5 text-xs font-semibold"
+                  >
+                    Cancel
+                  </button>
+                </div>
               </form>
             </motion.div>
           </div>

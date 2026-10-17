@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
 
-export type DoctorStatus = 'AVAILABLE' | 'IN_CONSULTATION' | 'BREAK' | 'OFF_DUTY'
+export type DoctorStatus = 'AVAILABLE' | 'IN_CONSULTATION' | 'BREAK' | 'OFF_DUTY' | 'ON_LEAVE'
 export type QueueStatus = 'WAITING' | 'IN_CONSULTATION' | 'COMPLETED' | 'SKIPPED'
 export type AppointmentStatus = 'PENDING' | 'ACCEPTED' | 'DECLINED'
 
@@ -18,6 +18,7 @@ export interface Doctor {
   rating: number
   reviewsCount: number
   avatarUrl: string
+  statusNote?: string
 }
 
 export interface QueueEntry {
@@ -118,6 +119,9 @@ interface ClinicContextType {
   nextAlertToken: number
   callNextToken: (doctorId?: string) => void
   updateDoctorStatus: (doctorId: string, status: DoctorStatus, room?: string) => void
+  updateDoctorDetails: (doctorId: string, updates: Partial<Doctor>) => void
+  getPatientProfileForUser: (currentUser: { id?: string; phone?: string; name?: string; email?: string; age?: number; gender?: 'Male' | 'Female' | 'Other' } | null) => PatientProfile
+  updatePatientDemographics: (patientId: string, data: Partial<PatientProfile>) => void
   acceptAppointment: (appointmentId: string) => void
   rejectAppointment: (appointmentId: string) => void
   bookNewAppointment: (data: Omit<AppointmentRequest, 'id' | 'bookingId' | 'status' | 'createdAt'>) => AppointmentRequest
@@ -564,7 +568,40 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const [patients, setPatients] = useState<PatientProfile[]>(() => {
     const saved = localStorage.getItem('clinic_patients')
-    return saved ? JSON.parse(saved) : INITIAL_PATIENTS
+    let list: PatientProfile[] = saved ? JSON.parse(saved) : INITIAL_PATIENTS
+
+    try {
+      const regSaved = localStorage.getItem('clinic_registered_users')
+      if (regSaved) {
+        const registeredUsers: any[] = JSON.parse(regSaved)
+        registeredUsers.forEach(ru => {
+          const ruClean = ru.phone ? ru.phone.replace(/\D/g, '') : ''
+          const exists = list.some(p => {
+            const pClean = p.phone ? p.phone.replace(/\D/g, '') : ''
+            return (ruClean && pClean && ruClean === pClean) || p.id === ru.id
+          })
+          if (!exists && ru.role === 'patient') {
+            const newProf: PatientProfile = {
+              id: ru.id,
+              mrn: `MRN-${ruClean.slice(-4) || Math.floor(1000 + Math.random() * 9000)}`,
+              name: ru.name,
+              phone: ru.phone || '',
+              age: ru.age || 28,
+              gender: ru.gender || 'Male',
+              bloodGroup: 'Not Recorded',
+              allergies: [],
+              totalVisits: 0,
+              firstVisitDate: 'Not yet visited',
+              lastVisitDate: 'None',
+              visits: [],
+            }
+            list = [newProf, ...list]
+          }
+        })
+      }
+    } catch {}
+
+    return list
   })
 
   const [activeAlert, setActiveAlert] = useState<LiveAlert | null>(null)
@@ -703,6 +740,36 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     })
   }
 
+  // Comprehensive doctor availability, schedule, room & notice editor for Receptionist
+  const updateDoctorDetails = (doctorId: string, updates: Partial<Doctor>) => {
+    setDoctors(prev =>
+      prev.map(d => {
+        if (d.id === doctorId) {
+          return {
+            ...d,
+            ...updates,
+          }
+        }
+        return d
+      })
+    )
+
+    const doc = doctors.find(d => d.id === doctorId)
+    const docName = updates.name || doc?.name || 'Doctor'
+    const statusText = updates.status ? updates.status.replace('_', ' ') : (doc?.status ? doc.status.replace('_', ' ') : 'Updated')
+    const roomText = updates.room || doc?.room || 'Room'
+
+    setActiveAlert({
+      id: Math.random().toString(36).substring(2, 9),
+      type: 'DOCTOR_STATUS_CHANGED',
+      title: `OPD Roster Updated: ${docName}`,
+      message: `${docName} status: ${statusText} in ${roomText}${updates.statusNote ? ` (${updates.statusNote})` : ''}`,
+      doctorName: docName,
+      room: roomText,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    })
+  }
+
   // Accept appointment request
   const acceptAppointment = (appointmentId: string) => {
     const apt = appointments.find(a => a.id === appointmentId)
@@ -800,7 +867,12 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     // Also link or create in patient database
     setPatients(prev => {
-      const existing = prev.find(p => p.phone === data.patientPhone)
+      const cleanDataPhone = data.patientPhone.replace(/\D/g, '')
+      const existing = prev.find(p => {
+        const cleanP = p.phone ? p.phone.replace(/\D/g, '') : ''
+        return (cleanDataPhone && cleanP && cleanDataPhone === cleanP) || (data.patientName && p.name.toLowerCase() === data.patientName.toLowerCase())
+      })
+
       if (existing) {
         return prev.map(p =>
           p.id === existing.id
@@ -810,7 +882,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       } else {
         const newProfile: PatientProfile = {
           id: `pat-${Date.now()}`,
-          mrn: `MRN-${Math.floor(1000 + Math.random() * 9000)}`,
+          mrn: `MRN-${cleanDataPhone.slice(-4) || Math.floor(1000 + Math.random() * 9000)}`,
           name: data.patientName,
           phone: data.patientPhone,
           age: data.patientAge,
@@ -912,10 +984,13 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setPatients(prev =>
       prev.map(p => {
         if (p.id === patientId) {
+          const currentVisits = p.visits || []
           return {
             ...p,
+            totalVisits: Math.max(p.totalVisits, currentVisits.length + 1),
+            firstVisitDate: (!p.firstVisitDate || p.firstVisitDate === 'Not yet visited') ? newVisitRecord.date : p.firstVisitDate,
             lastVisitDate: newVisitRecord.date,
-            visits: [newVisitRecord, ...p.visits],
+            visits: [newVisitRecord, ...currentVisits],
           }
         }
         return p
@@ -928,6 +1003,89 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       title: 'Consultation & Prescription Saved',
       message: `Medical history updated with new Rx and diagnosis: ${visitData.diagnosis}`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    })
+  }
+
+  // Real patient resolution: returns clean 0-visit EHR for any first-time user
+  const getPatientProfileForUser = (
+    currentUser: { id?: string; phone?: string; name?: string; email?: string; age?: number; gender?: 'Male' | 'Female' | 'Other' } | null
+  ): PatientProfile => {
+    if (!currentUser) {
+      return {
+        id: 'pat-guest',
+        mrn: 'MRN-GUEST',
+        name: 'Guest Patient',
+        phone: '',
+        age: 30,
+        gender: 'Male',
+        bloodGroup: 'Not Recorded',
+        allergies: [],
+        totalVisits: 0,
+        firstVisitDate: 'Not yet visited',
+        lastVisitDate: 'None',
+        visits: [],
+      }
+    }
+
+    const cleanUserPhone = currentUser.phone ? currentUser.phone.replace(/\D/g, '') : ''
+
+    // Strict matching by phone, ID, or exact registered name
+    const matched = patients.find(p => {
+      const cleanPatPhone = p.phone ? p.phone.replace(/\D/g, '') : ''
+      if (cleanUserPhone && cleanPatPhone && cleanUserPhone === cleanPatPhone) return true
+      if (currentUser.id && p.id === currentUser.id) return true
+      if (currentUser.name && currentUser.name.toLowerCase() !== 'verified patient' && p.name.toLowerCase() === currentUser.name.toLowerCase()) return true
+      return false
+    })
+
+    if (matched) {
+      return matched
+    }
+
+    // Truly real first-time patient profile: 0 visits, 0 past prescriptions, completely clean history!
+    const phonePart = cleanUserPhone && cleanUserPhone.length >= 4 
+      ? cleanUserPhone.slice(-4) 
+      : Math.floor(1000 + Math.random() * 9000).toString()
+
+    return {
+      id: currentUser.id || `pat-${cleanUserPhone || Date.now()}`,
+      mrn: `MRN-${phonePart}`,
+      name: currentUser.name || (cleanUserPhone ? `Patient (${cleanUserPhone.slice(-4)})` : 'New Patient'),
+      phone: currentUser.phone || '',
+      age: currentUser.age || 28,
+      gender: currentUser.gender || 'Male',
+      bloodGroup: 'Not Recorded',
+      allergies: [],
+      totalVisits: 0,
+      firstVisitDate: 'Not yet visited',
+      lastVisitDate: 'None',
+      visits: [],
+    }
+  }
+
+  // Update demographic & clinical allergy information for a patient profile
+  const updatePatientDemographics = (patientId: string, data: Partial<PatientProfile>) => {
+    setPatients(prev => {
+      const exists = prev.some(p => p.id === patientId)
+      if (exists) {
+        return prev.map(p => (p.id === patientId ? { ...p, ...data } : p))
+      } else {
+        const newProf: PatientProfile = {
+          id: patientId,
+          mrn: data.mrn || `MRN-${Math.floor(1000 + Math.random() * 9000)}`,
+          name: data.name || 'New Patient',
+          phone: data.phone || '',
+          age: data.age || 28,
+          gender: data.gender || 'Male',
+          bloodGroup: data.bloodGroup || 'Not Recorded',
+          allergies: data.allergies || [],
+          totalVisits: data.totalVisits || 0,
+          firstVisitDate: data.firstVisitDate || 'Not yet visited',
+          lastVisitDate: data.lastVisitDate || 'None',
+          visits: data.visits || [],
+        }
+        return [newProf, ...prev]
+      }
     })
   }
 
@@ -953,6 +1111,9 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     nextAlertToken,
     callNextToken,
     updateDoctorStatus,
+    updateDoctorDetails,
+    getPatientProfileForUser,
+    updatePatientDemographics,
     acceptAppointment,
     rejectAppointment,
     bookNewAppointment,

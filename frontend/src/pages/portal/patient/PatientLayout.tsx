@@ -13,16 +13,24 @@ import { motion, AnimatePresence } from 'framer-motion'
 
 export default function PatientLayout() {
   const { user } = useAuth()
-  const { queue, currentServingToken, nextAlertToken, patients } = useClinic()
+  const { queue, currentServingToken, nextAlertToken, getPatientProfileForUser } = useClinic()
   const location = useLocation()
 
-  // Find user token
-  const patientProfile = patients.find(p => p.phone === user?.phone || p.name.toLowerCase().includes('suresh')) || patients[0]
-  const myQueueItem = queue.find(q => q.patientPhone === user?.phone || q.patientName.toLowerCase().includes('suresh'))
-  const userToken = myQueueItem ? myQueueItem.tokenNumber : 103
+  // Dynamic patient profile matching
+  const patientProfile = getPatientProfileForUser(user)
 
-  const isMyTurnNow = currentServingToken === userToken
-  const isMyTurnNext = nextAlertToken === userToken
+  // Strictly match active queue token (null for first-time / unchecked-in users)
+  const cleanPhone = user?.phone ? user.phone.replace(/\D/g, '') : ''
+  const myQueueItem = queue.find(q => {
+    const qPhone = q.patientPhone ? q.patientPhone.replace(/\D/g, '') : ''
+    if (cleanPhone && qPhone && cleanPhone === qPhone) return true
+    if (user?.name && user.name.toLowerCase() !== 'verified patient' && q.patientName.toLowerCase() === user.name.toLowerCase()) return true
+    return false
+  })
+  const userToken = myQueueItem ? myQueueItem.tokenNumber : null
+
+  const isMyTurnNow = userToken !== null && currentServingToken === userToken
+  const isMyTurnNext = userToken !== null && nextAlertToken === userToken
 
   // Tabs for Patient Multi-Page Portal
   const navTabs = [
@@ -41,7 +49,7 @@ export default function PatientLayout() {
       label: 'Live Queue & Turn Tracker',
       shortLabel: 'Live Queue',
       icon: Clock,
-      badge: isMyTurnNow ? 'NOW' : isMyTurnNext ? 'NEXT' : `#${userToken}`,
+      badge: isMyTurnNow ? 'NOW' : isMyTurnNext ? 'NEXT' : userToken ? `#${userToken}` : null,
       description: 'Sequential order & wait time',
     },
     {
@@ -50,7 +58,7 @@ export default function PatientLayout() {
       label: 'My Past Visits & Prescribed Tablets',
       shortLabel: 'Past Visits & Rx',
       icon: FileText,
-      badge: `${patientProfile?.visits?.length || 0} Visits`,
+      badge: patientProfile.visits.length > 0 ? `${patientProfile.visits.length} Visits` : '0 Visits',
       description: 'Visit history, diagnoses & medicines',
     },
     {
@@ -80,7 +88,7 @@ export default function PatientLayout() {
               <span>Blood Group: {patientProfile.bloodGroup}</span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-black tracking-tight">
-              Welcome, {user?.name || 'Suresh Kumar'}
+              Welcome, {user?.name || patientProfile.name}
             </h1>
             <p className="text-teal-100 text-xs sm:text-sm max-w-2xl leading-relaxed">
               Explore available specialists, check real-time OPD room availability, monitor your queue turn, and review past visits with prescribed tablets.
@@ -89,12 +97,23 @@ export default function PatientLayout() {
 
           {/* Quick Status Pill */}
           <div className="flex flex-wrap items-center gap-3">
-            <div className="p-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 text-center min-w-[120px]">
-              <span className="text-[11px] text-teal-200 font-semibold block uppercase tracking-wider">Your Token</span>
-              <span className="text-2xl font-black text-white">#{userToken}</span>
-              <span className="text-[10px] text-emerald-300 block font-bold">
-                {isMyTurnNow ? 'Inside Cabin' : isMyTurnNext ? 'Next Up!' : 'In Queue'}
+            <div className="p-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 text-center min-w-[130px]">
+              <span className="text-[11px] text-teal-200 font-semibold block uppercase tracking-wider">
+                {userToken !== null ? 'Your Token' : 'Queue Status'}
               </span>
+              {userToken !== null ? (
+                <>
+                  <span className="text-2xl font-black text-white">#{userToken}</span>
+                  <span className="text-[10px] text-emerald-300 block font-bold">
+                    {isMyTurnNow ? 'Inside Cabin' : isMyTurnNext ? 'Next Up!' : 'In Queue'}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="text-base font-bold text-white block mt-1">Not in Line</span>
+                  <span className="text-[10px] text-teal-200 block font-medium">Ready to Join</span>
+                </>
+              )}
             </div>
           </div>
         </div>
